@@ -17,9 +17,15 @@ def evaluate(dataset, all_symbols):
 
     with tf.Graph().as_default() as g:
         # Init the model
-        params = {'dropout': 0.0}
-
         model = Model(input_num_vocab=len(all_symbols))
+
+        # Import dataset
+        test_dataset = data_input.read_data("data/test.tfrecords")
+
+        table = tf.contrib.lookup.index_table_from_tensor(
+            mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
+
+        train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=5)
 
         # Transform the dataset into tf.data.Dataset. Build iterator
         iterator = dataset.make_one_shot_generator()
@@ -41,14 +47,7 @@ def evaluate(dataset, all_symbols):
 
 
 def main():
-
-    # Import dataset
-    test_dataset = data_input.read_data("data/test.tfrecords")
-
-    table = tf.contrib.lookup.index_table_from_tensor(
-        mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
-
-    train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=5)
+    evaluate()
 
 
 if __name__ == "__main__":
