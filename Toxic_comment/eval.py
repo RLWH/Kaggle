@@ -20,12 +20,12 @@ def evaluate(dataset, all_symbols):
         model = Model(input_num_vocab=len(all_symbols))
 
         # Import dataset
-        test_dataset = data_input.read_data("data/test.tfrecords")
+        eval_dataset = data_input.read_data("data/val.tfrecords")
 
         table = tf.contrib.lookup.index_table_from_tensor(
             mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
 
-        train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=5)
+        eval_input = data_input.train_eval_input_fn(eval_dataset, table, batch_size=5)
 
         # Transform the dataset into tf.data.Dataset. Build iterator
         iterator = dataset.make_one_shot_generator()
@@ -35,7 +35,6 @@ def evaluate(dataset, all_symbols):
         logits = model.inference(features)
 
         # Calculate loss
-        loss = model.loss(logits, labels)
 
         with tf.Session() as sess:
 

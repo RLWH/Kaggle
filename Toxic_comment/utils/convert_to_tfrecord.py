@@ -98,8 +98,12 @@ def convert_to_tf_record(X, Y=None, filename=None, verbose=True):
         d_feature['comment_text'] = _bytes_feature(str.encode(x))
 
         if Y is not None:
-            y = Y[idx]
-            d_feature['label'] = _int64_feature(y)
+            d_feature['toxic'] = _int64_feature(Y[idx, 0])
+            d_feature['severe_toxic'] = _int64_feature(Y[idx, 1])
+            d_feature['obscene'] = _int64_feature(Y[idx, 2])
+            d_feature['threat'] = _int64_feature(Y[idx, 3])
+            d_feature['insult'] = _int64_feature(Y[idx, 4])
+            d_feature['identity_hate'] = _int64_feature(Y[idx, 5])
 
         features = tf.train.Features(feature=d_feature)
         example = tf.train.Example(features=features)
@@ -117,16 +121,17 @@ if __name__ == "__main__":
     # Convert multiclass labels into single-coded label
     feature_cols = ['comment_text']
     multiclass_cols = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-    train_df_single = convert_multiclass(train_df, feature_cols, multiclass_cols)
+    # train_df_single = convert_multiclass(train_df, feature_cols, multiclass_cols)
 
-    train_X_imb = train_df_single.loc[:, 'comment_text'].as_matrix().reshape(-1, 1)
-    train_y_imb = train_df_single.loc[:, 'label'].as_matrix()
+    train_X_imb = train_df.loc[:, 'comment_text'].as_matrix().reshape(-1, 1)
+    train_y_imb = train_df.loc[:, multiclass_cols].values
     #
     # print(train_X_imb)
     # print(train_y_imb)
 
     # Rebalance the dataset
     # train_X_resampled, train_y_resampled = RandomOverSampler().fit_sample(train_X_imb, train_y_imb)
+
 
     train_X, val_X, train_y, val_y = train_test_split(train_X_imb,
                                                       train_y_imb,

@@ -43,7 +43,6 @@ class Model:
         self.RNN_NUM_LAYERS = 2
         self.ENCODER_EMBEDDING_DIM = 64
 
-
         self.BATCH_SIZE = 32
         self.LEARNING_RATE = 0.0003
 
@@ -73,7 +72,7 @@ class Model:
             # Create LSTM Cell
             cell = make_multi_cell(self.RNN_STATE_DIM, self.RNN_NUM_LAYERS)
 
-            # Runs the cell on the input to obtain tensor for putputs and states
+            # Runs the cell on the input to obtain tensor for outputs and states
             outputs, states = tf.nn.dynamic_rnn(cell,
                                                 embedded_input,
                                                 dtype=tf.float32)
@@ -94,7 +93,7 @@ class Model:
             dense2 = tf.layers.dense(dropout1, units=64, activation=tf.nn.relu)
 
         with tf.variable_scope("pred"):
-            logits = tf.layers.dense(inputs=dense2, units=2)
+            logits = tf.layers.dense(inputs=dense2, units=6)
 
         return logits
 
@@ -106,9 +105,14 @@ class Model:
         :return:
         """
         # Assume labels are one_hot encoded
-        cross_entropy = tf.losses.softmax_cross_entropy(onehot_labels=tf.one_hot(labels, depth=2), logits=logits)
+        cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits,
+                                                       name='cross_entropy_per_example')
         cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
         tf.add_to_collection('losses', cross_entropy_mean)
+
+        correct_prediction = tf.equal(tf.round(logits), tf.round(labels))
+        mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        tf.add_to_collection('mean_acc', mean_accuracy)
 
         return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
