@@ -4,9 +4,11 @@ Training operation
 import tensorflow as tf
 import time
 import data_input
+import csv
 
 from model import Model
-from utils import word_processing
+from config import config
+from utils.word_processing import read_vocab
 from data_input import read_data, train_eval_input_fn
 from datetime import datetime
 
@@ -17,8 +19,7 @@ def train(dataset, all_symbols):
     :return:
     """
 
-    TRAIN_EPOCHS = 5
-    TRAIN_BATCHES = 1024
+    TRAIN_STEP = 10
 
     global_step = tf.train.get_or_create_global_step()
 
@@ -33,7 +34,10 @@ def train(dataset, all_symbols):
     logits = model.inference(features)
 
     # Calculate loss
-    loss = model.loss(logits, labels)
+    loss, acc = model.loss(logits, labels)
+
+    # Show accuracy
+    # acc = tf.get_collection('mean_acc')
 
     # Build a Graph that trains the model with one batch of example and update the model params
     train_op = model.train(loss, global_step)
@@ -47,9 +51,10 @@ def train(dataset, all_symbols):
     with tf.train.MonitoredTrainingSession(
             scaffold=scaffold,
             checkpoint_dir='checkpoint',
-            hooks=[tf.train.StopAtStepHook(last_step=100000),
+            save_summaries_steps=10,
+            hooks=[tf.train.StopAtStepHook(last_step=TRAIN_STEP),
                    tf.train.NanTensorHook(loss),
-                   tf.train.LoggingTensorHook({"loss": loss}, every_n_iter=100)],
+                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc}, every_n_iter=1)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():
@@ -57,14 +62,14 @@ def train(dataset, all_symbols):
 
 
 def main(argv):
-    # Build vocabularies
-    all_symbols = data_input.build_vocab(export=True)
+    # Import existing vocabs
+    all_symbols = read_vocab(source_path='data/vocab.csv')
 
     table = tf.contrib.lookup.index_table_from_tensor(
         mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
 
     train_dataset = data_input.read_data("data/train.tfrecords")
-    train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=5)
+    train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=config.BATCH_SIZE)
 
     train(train_input, all_symbols)
 

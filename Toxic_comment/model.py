@@ -22,6 +22,8 @@ import pandas as pd
 import tensorflow as tf
 import data_input
 
+from config import config
+
 
 def make_cell(state_dim):
     lstm_initializer = tf.random_uniform_initializer(-0.1, 0.1)
@@ -38,16 +40,18 @@ class Model:
     def __init__(self, input_num_vocab):
 
         # Define hyperparameters
-        self.NUM_EPOCHS = 300
-        self.RNN_STATE_DIM = 512
-        self.RNN_NUM_LAYERS = 2
-        self.ENCODER_EMBEDDING_DIM = 64
+        self.RNN_STATE_DIM = config.RNN_STATE_DIM
+        self.RNN_NUM_LAYERS = config.RNN_NUM_LAYERS
+        self.ENCODER_EMBEDDING_DIM = config.ENCODER_EMBEDDING_DIM
+        self.num_class = config.NUM_CLASS
+        self.LEARNING_RATE = config.LEARNING_RATE
 
-        self.BATCH_SIZE = 32
-        self.LEARNING_RATE = 0.0003
+        # Dense layer units
+        self.DENSE1_UNIT = config.DENSE1_UNIT
+        self.DENSE2_UNIT = config.DENSE2_UNIT
 
         self.INPUT_NUM_VOCAB = input_num_vocab
-        self.DROPOUT_RATE = 0.5
+        self.DROPOUT_RATE = config.DROPOUT_RATE
 
     def inference(self, inputs, training=False):
         """
@@ -58,7 +62,7 @@ class Model:
 
         # Remarks - Input is with shape [None, seq_size, input_dim]
         # encoder_seq_length = tf.shape(inputs).eval()[1]
-        embedding_dim = 300
+        embedding_dim = config.ENCODER_EMBEDDING_DIM
 
         with tf.device('/cpu:0'):
             with tf.variable_scope("embedding"):
@@ -80,20 +84,20 @@ class Model:
         with tf.variable_scope("combine"):
             # flatten = tf.reshape(outputs, [-1, self.RNN_STATE_DIM])
             output_t = tf.transpose(outputs, [1, 0, 2])
-            print(output_t.get_shape())
+            # print(output_t.get_shape())
             last = tf.gather(output_t, tf.cast((tf.shape(output_t)[0]), dtype=tf.int32) - 1)
 
         with tf.variable_scope("dense1"):
-            dense1 = tf.layers.dense(last,  units=192, activation=tf.nn.relu, name="dense1")
+            dense1 = tf.layers.dense(last,  units=self.DENSE1_UNIT, activation=tf.nn.relu, name="dense1")
 
         with tf.variable_scope("dropout1"):
             dropout1 = tf.layers.dropout(dense1, rate=self.DROPOUT_RATE, name="dropout1", training=training)
 
         with tf.variable_scope("dense2"):
-            dense2 = tf.layers.dense(dropout1, units=64, activation=tf.nn.relu)
+            dense2 = tf.layers.dense(dropout1, units=self.DENSE2_UNIT, activation=tf.nn.relu)
 
         with tf.variable_scope("pred"):
-            logits = tf.layers.dense(inputs=dense2, units=6)
+            logits = tf.layers.dense(inputs=dense2, units=self.num_class)
 
         return logits
 
@@ -114,7 +118,8 @@ class Model:
         mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         tf.add_to_collection('mean_acc', mean_accuracy)
 
-        return tf.add_n(tf.get_collection('losses'), name='total_loss')
+        return tf.add_n(tf.get_collection('losses'), name='total_loss'), \
+               tf.reduce_mean(tf.get_collection('mean_acc'), reduction_indices=0, name='total_mean_acc')
 
     def train(self, total_loss, global_step):
         """

@@ -125,13 +125,6 @@ if __name__ == "__main__":
 
     train_X_imb = train_df.loc[:, 'comment_text'].as_matrix().reshape(-1, 1)
     train_y_imb = train_df.loc[:, multiclass_cols].values
-    #
-    # print(train_X_imb)
-    # print(train_y_imb)
-
-    # Rebalance the dataset
-    # train_X_resampled, train_y_resampled = RandomOverSampler().fit_sample(train_X_imb, train_y_imb)
-
 
     train_X, val_X, train_y, val_y = train_test_split(train_X_imb,
                                                       train_y_imb,

@@ -5,17 +5,23 @@ Evaluation script
 import tensorflow as tf
 import numpy as np
 import data_input
+import csv
 
 from model import Model
+from utils.word_processing import read_vocab
 
 
-def evaluate(dataset, all_symbols):
+def evaluate():
     """
     Eval the model for a number of steps
     :return:
     """
 
     with tf.Graph().as_default() as g:
+
+        # Read the vocabularies
+        all_symbols = read_vocab('data/vocab.csv')
+
         # Init the model
         model = Model(input_num_vocab=len(all_symbols))
 
@@ -28,7 +34,7 @@ def evaluate(dataset, all_symbols):
         eval_input = data_input.train_eval_input_fn(eval_dataset, table, batch_size=5)
 
         # Transform the dataset into tf.data.Dataset. Build iterator
-        iterator = dataset.make_one_shot_generator()
+        iterator = eval_dataset.make_one_shot_generator()
         features, labels = iterator.get_next()
 
         # Infer the logits and loss

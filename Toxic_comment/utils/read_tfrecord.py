@@ -25,7 +25,12 @@ if __name__ == '__main__':
 
         feature = {
             'comment_text': tf.FixedLenFeature((), dtype=tf.string, default_value=""),
-            'label': tf.FixedLenFeature((), dtype=tf.int64, default_value=0)
+            'toxic': tf.FixedLenFeature((), dtype=tf.int64, default_value=0),
+            'severe_toxic': tf.FixedLenFeature((), dtype=tf.int64, default_value=0),
+            'obscene': tf.FixedLenFeature((), dtype=tf.int64, default_value=0),
+            'threat': tf.FixedLenFeature((), dtype=tf.int64, default_value=0),
+            'insult': tf.FixedLenFeature((), dtype=tf.int64, default_value=0),
+            'identity_hate': tf.FixedLenFeature((), dtype=tf.int64, default_value=0)
         }
 
         # Create a list of filenames and pass it to a queue
@@ -37,7 +42,13 @@ if __name__ == '__main__':
         features = tf.parse_single_example(serialized_example, features=feature)
 
         comment_text = tf.cast(features['comment_text'], tf.string)
-        label = tf.cast(features['label'], tf.int64)
+        label = tf.stack([tf.cast(features['toxic'], tf.int64),
+                         tf.cast(features['severe_toxic'], tf.int64),
+                         tf.cast(features['obscene'], tf.int64),
+                         tf.cast(features['threat'], tf.int64),
+                         tf.cast(features['insult'], tf.int64),
+                          tf.cast(features['identity_hate'], tf.int64),
+                         ])
 
         comment_texts, labels = tf.train.shuffle_batch([comment_text, label], batch_size=10, capacity=30, num_threads=1,
                                                 min_after_dequeue=10)
@@ -49,7 +60,8 @@ if __name__ == '__main__':
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        print(sess.run(comment_texts))
+        print(sess.run([comment_texts, labels]))
+        # print(sess.run(label))
 
         # Stop the threads
         coord.request_stop()
