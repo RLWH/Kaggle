@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import data_input
+import re
 
 from config import config
 
@@ -33,6 +34,23 @@ def make_cell(state_dim):
 def make_multi_cell(state_dim, num_layers):
     cells = [make_cell(state_dim) for _ in range(num_layers)]
     return tf.contrib.rnn.MultiRNNCell(cells)
+
+
+def _activation_summary(x):
+    """Helper to create summaries for activations.
+    Creates a summary that provides a histogram of activations.
+    Creates a summary that measures the sparsity of activations.
+    Args:
+    x: Tensor
+    Returns:
+    nothing
+    """
+    # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
+    # session. This helps the clarity of presentation on tensorboard.
+    tensor_name = re.sub('%s_[0-9]*/' % "Tower", '', x.op.name)
+    tf.summary.histogram(tensor_name + '/activations', x)
+    tf.summary.scalar(tensor_name + '/sparsity',
+                                       tf.nn.zero_fraction(x))
 
 
 class Model:
@@ -114,8 +132,10 @@ class Model:
         cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
         tf.add_to_collection('losses', cross_entropy_mean)
 
-        correct_prediction = tf.equal(tf.round(logits), tf.round(labels))
-        mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
+
+        correct_prediction_op = tf.equal(prediction_op, tf.round(labels))
+        mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
         tf.add_to_collection('mean_acc', mean_accuracy)
 
         return tf.add_n(tf.get_collection('losses'), name='total_loss'), \

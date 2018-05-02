@@ -36,8 +36,11 @@ def train(dataset, all_symbols):
     # Calculate loss
     loss, acc = model.loss(logits, labels)
 
-    # Show accuracy
-    # acc = tf.get_collection('mean_acc')
+    # Add to tensorboard
+    loss_hist = tf.summary.scalar('total_loss', loss)
+    acc_hist = tf.summary.scalar('mean_acc', acc)
+
+    summary_op = tf.summary.merge_all()
 
     # Build a Graph that trains the model with one batch of example and update the model params
     train_op = model.train(loss, global_step)
@@ -54,7 +57,8 @@ def train(dataset, all_symbols):
             save_summaries_steps=10,
             hooks=[tf.train.StopAtStepHook(last_step=TRAIN_STEP),
                    tf.train.NanTensorHook(loss),
-                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc}, every_n_iter=1)],
+                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc}, every_n_iter=1),
+                   tf.train.SummarySaverHook(save_steps=10, output_dir='logs', summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():

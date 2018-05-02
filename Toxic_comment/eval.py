@@ -7,8 +7,30 @@ import numpy as np
 import data_input
 import csv
 
+from config import config
 from model import Model
 from utils.word_processing import read_vocab
+
+
+def evaluate_once(saver, summary_writer):
+
+    with tf.Session() as sess:
+        # Read checkpoint if checkpoint exists
+        ckpt = tf.train.get_checkpoint_state("checkpoint")
+
+        if ckpt and ckpt.model_checkpoint_path:
+            # Restore the checkpoint
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            # Assuming model_checkpoint_path looks something like:
+            #   /my-favorite-path/cifar10_train/model.ckpt-0, --> Global step = Last digit
+            # extract global_step from it.
+            global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+        else:
+            # If no checkpoint found, return
+            print("No checkpoint found")
+            return
+
+
 
 
 def evaluate():
@@ -40,15 +62,13 @@ def evaluate():
         # Infer the logits and loss
         logits = model.inference(features)
 
-        # Calculate loss
+        # Calculate predictions
+        prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
 
-        with tf.Session() as sess:
+        mean_accuracy_op = tf.equal(prediction_op, tf.round(labels))
 
-            while True:
-                try:
-                    sess.run(loss)
-                except tf.errors.OutOfRangeError:
-                    break
+        # Initiate a saver and pass in all saveable variables
+        saver = tf.train.Saver()
 
 
 def main():
