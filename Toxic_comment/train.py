@@ -41,7 +41,7 @@ def train(dataset, all_symbols):
     features, labels = iterator.get_next()
 
     # Infer the logits and loss
-    logits = model.inference(features)
+    logits = model.inference(features, training=True)
 
     # Calculate loss
     loss, acc, auc, auc_op = model.loss(logits, labels)

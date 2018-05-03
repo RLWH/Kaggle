@@ -82,7 +82,7 @@ def evaluate():
         features, labels = iterator.get_next()
 
         # Infer the logits and loss
-        logits = model.inference(features)
+        logits = model.inference(features, training=False)
         _, acc, auc, auc_op = model.loss(logits, labels)
 
         # Calculate predictions
