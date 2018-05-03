@@ -49,7 +49,8 @@ def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_
             print("No checkpoint found")
             return
 
-        auc_val, acc_val, _, summary = sess.run([auc, acc, auc_op, summary_op])
+        sess.run(auc_op)
+        auc_val, acc_val, summary = sess.run([auc, acc, summary_op])
         summary_writer.add_summary(summary, global_step)
 
         print("Eval step %s: Accuracy: %s, AUC: %s" % (global_step, acc_val, auc_val))
