@@ -134,7 +134,7 @@ class Model:
 
         prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
 
-        correct_prediction_op = tf.equal(prediction_op, tf.round(labels))
+        correct_prediction_op = tf.equal(tf.cast(prediction_op, tf.float32), tf.round(labels))
         mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
         tf.add_to_collection('mean_acc', mean_accuracy)
 

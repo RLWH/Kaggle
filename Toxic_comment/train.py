@@ -8,7 +8,7 @@ import csv
 
 from model import Model
 from config import config
-from utils.word_processing import read_vocab
+from utils.word_processing import read_vocab, build_vocab
 from data_input import read_data, train_eval_input_fn
 from datetime import datetime
 
@@ -19,7 +19,7 @@ def train(dataset, all_symbols):
     :return:
     """
 
-    TRAIN_STEP = 10
+    TRAIN_STEP = 1000
 
     global_step = tf.train.get_or_create_global_step()
 
@@ -67,7 +67,11 @@ def train(dataset, all_symbols):
 
 def main(argv):
     # Import existing vocabs
-    all_symbols = read_vocab(source_path='data/vocab.csv')
+    try:
+        all_symbols = read_vocab(source_path='data/vocab.csv')
+    except FileNotFoundError:
+        print("No vocab file found. Creating one. ")
+        all_symbols = build_vocab(source_path='data/train.csv', export_path='data/vocab.csv')
 
     table = tf.contrib.lookup.index_table_from_tensor(
         mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
