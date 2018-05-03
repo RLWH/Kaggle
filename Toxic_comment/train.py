@@ -16,13 +16,13 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('train_dir', 'logs/train',
                            """Directory where to write event logs.""")
-tf.app.flags.DEFINE_integer('max_steps', 100,
+tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Maximum steps of the run""")
-tf.app.flags.DEFINE_string('checkpoint_dir', '/checkpoint',
+tf.app.flags.DEFINE_string('checkpoint_dir', 'checkpoint',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', True,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_integer('log_frequency', 10,
+tf.app.flags.DEFINE_integer('log_frequency', 100,
                             """How often to log results to the console.""")
 
 def train(dataset, all_symbols):
@@ -64,12 +64,12 @@ def train(dataset, all_symbols):
 
     with tf.train.MonitoredTrainingSession(
             scaffold=scaffold,
-            checkpoint_dir='checkpoint',
+            checkpoint_dir=FLAGS.checkpoint_dir,
             save_summaries_steps=FLAGS.log_frequency,
             hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                    tf.train.NanTensorHook(loss),
                    tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=1),
-                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir='logs/train', summary_op=summary_op)],
+                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir=FLAGS.train_dir, summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():
@@ -77,6 +77,11 @@ def train(dataset, all_symbols):
 
 
 def main(argv):
+
+    if tf.gfile.Exists(FLAGS.train_dir):
+        tf.gfile.DeleteRecursively(FLAGS.train_dir)
+    tf.gfile.MakeDirs(FLAGS.train_dir)
+
     # Import existing vocabs
     try:
         all_symbols = read_vocab(source_path='data/vocab.csv')

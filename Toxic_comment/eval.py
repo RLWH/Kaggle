@@ -12,6 +12,21 @@ from model import Model
 from utils.word_processing import read_vocab
 
 
+FLAGS = tf.app.flags.FLAGS
+
+tf.app.flags.DEFINE_string('eval_dir', 'logs/eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('eval_data', 'train_eval',
+                           """Either 'test' or 'train_eval'.""")
+tf.app.flags.DEFINE_integer('eval_interval_secs', 60 * 5,
+                            """How often to run the eval. """)
+tf.app.flags.DEFINE_integer('batch_size', 256,
+                            """Batch size of each eval """)
+tf.app.flags.DEFINE_string('checkpoint_dir', '/checkpoint',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_boolean('run_once', False,
+                         """Whether to run eval only once.""")
+
 def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_writer):
 
     with tf.Session(graph=graph) as sess:
@@ -35,17 +50,10 @@ def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_
             print("No checkpoint found")
             return
 
-        eval_step = 0
+        auc_val, acc_val, _, summary = sess.run([auc, acc, auc_op, summary_op])
+        summary_writer.add_summary(summary, global_step)
 
-        while True:
-            try:
-                auc_val, acc_val, _, summary = sess.run([auc, acc, auc_op, summary_op])
-                summary_writer.add_summary(summary, global_step)
-                if int(eval_step) % 10 == 0:
-                    print("Eval step %s: Accuracy: %s, AUC: %s" % (global_step, acc_val, auc_val))
-                eval_step += 1
-            except tf.errors.OutOfRangeError:
-                break
+        print("Eval step %s: Accuracy: %s, AUC: %s" % (global_step, acc_val, auc_val))
 
 
 def evaluate():
@@ -68,7 +76,7 @@ def evaluate():
         table = tf.contrib.lookup.index_table_from_tensor(
             mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
 
-        eval_input = data_input.train_eval_input_fn(eval_dataset, table, batch_size=5)
+        eval_input = data_input.train_eval_input_fn(eval_dataset, table, batch_size=FLAGS.batch_size)
 
         # Transform the dataset into tf.data.Dataset. Build iterator
         iterator = eval_input.make_initializable_iterator()
@@ -91,12 +99,20 @@ def evaluate():
 
         # Initiate a saver and pass in all saveable variables
         saver = tf.train.Saver()
-        summary_writer = tf.summary.FileWriter('logs/eval')
+        summary_writer = tf.summary.FileWriter(FLAGS.eval_dir)
 
-        evaluate_once(g, iterator, auc, acc, auc_op, summary_op, saver, summary_writer)
+        while True:
+            evaluate_once(g, iterator, auc, acc, auc_op, summary_op, saver, summary_writer)
+            if FLAGS.run_once:
+                break
+            time.sleep(FLAGS.eval_interval_secs)
 
 
 def main(argv):
+    if tf.gfile.Exists(FLAGS.eval_dir):
+        tf.gfile.DeleteRecursively(FLAGS.eval_dir)
+    tf.gfile.MakeDirs(FLAGS.eval_dir)
+
     evaluate()
 
 
