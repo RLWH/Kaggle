@@ -68,7 +68,7 @@ def train(dataset, all_symbols):
             save_summaries_steps=FLAGS.log_frequency,
             hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                    tf.train.NanTensorHook(loss),
-                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=1),
+                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=FLAGS.log_frequency),
                    tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir=FLAGS.train_dir, summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 

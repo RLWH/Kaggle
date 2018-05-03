@@ -153,7 +153,7 @@ class Model:
         Create an optimizer and apply to all trainable variables. Add moving average for all trainable variables
         :return: train_op
         """
-        train_op = tf.train.AdagradOptimizer(learning_rate=self.LEARNING_RATE).minimize(total_loss,
+        train_op = tf.train.RMSPropOptimizer(learning_rate=self.LEARNING_RATE).minimize(total_loss,
                                                                                         global_step=global_step)
 
         return train_op
