@@ -69,7 +69,7 @@ def train(dataset, all_symbols):
             hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                    tf.train.NanTensorHook(loss),
                    tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=1),
-                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir='logs', summary_op=summary_op)],
+                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir='logs/train', summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():
