@@ -12,9 +12,14 @@ from model import Model
 from utils.word_processing import read_vocab
 
 
-def evaluate_once(saver, summary_writer):
+def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_writer):
 
-    with tf.Session() as sess:
+    with tf.Session(graph=graph) as sess:
+
+        sess.run(tf.local_variables_initializer())
+        sess.run(iterator.initializer)
+        sess.run(tf.tables_initializer())
+
         # Read checkpoint if checkpoint exists
         ckpt = tf.train.get_checkpoint_state("checkpoint")
 
@@ -30,7 +35,17 @@ def evaluate_once(saver, summary_writer):
             print("No checkpoint found")
             return
 
+        eval_step = 0
 
+        while True:
+            try:
+                auc_val, acc_val, _, summary = sess.run([auc, acc, auc_op, summary_op])
+                summary_writer.add_summary(summary, global_step)
+                if int(eval_step) % 10 == 0:
+                    print("Eval step %s: Accuracy: %s, AUC: %s" % (global_step, acc_val, auc_val))
+                eval_step += 1
+            except tf.errors.OutOfRangeError:
+                break
 
 
 def evaluate():
@@ -56,22 +71,32 @@ def evaluate():
         eval_input = data_input.train_eval_input_fn(eval_dataset, table, batch_size=5)
 
         # Transform the dataset into tf.data.Dataset. Build iterator
-        iterator = eval_dataset.make_one_shot_generator()
+        iterator = eval_input.make_initializable_iterator()
         features, labels = iterator.get_next()
 
         # Infer the logits and loss
         logits = model.inference(features)
+        _, acc, auc, auc_op = model.loss(logits, labels)
 
         # Calculate predictions
         prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
 
-        mean_accuracy_op = tf.equal(prediction_op, tf.round(labels))
+        correct_prediction_op = tf.equal(tf.cast(prediction_op, tf.float32), tf.round(labels))
+        mean_accuracy_op = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
+
+        auc_hist = tf.summary.scalar('auc', auc)
+        mean_accuracy_history = tf.summary.scalar('mean_acc', mean_accuracy_op)
+
+        summary_op = tf.summary.merge_all()
 
         # Initiate a saver and pass in all saveable variables
         saver = tf.train.Saver()
+        summary_writer = tf.summary.FileWriter('logs/eval')
+
+        evaluate_once(g, iterator, auc, acc, auc_op, summary_op, saver, summary_writer)
 
 
-def main():
+def main(argv):
     evaluate()
 
 

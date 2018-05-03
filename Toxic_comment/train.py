@@ -10,16 +10,26 @@ from model import Model
 from config import config
 from utils.word_processing import read_vocab, build_vocab
 from data_input import read_data, train_eval_input_fn
-from datetime import datetime
 
+
+FLAGS = tf.app.flags.FLAGS
+
+tf.app.flags.DEFINE_string('train_dir', 'logs/train',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_integer('max_steps', 100,
+                            """Maximum steps of the run""")
+tf.app.flags.DEFINE_string('checkpoint_dir', '/checkpoint',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_boolean('log_device_placement', True,
+                            """Whether to log device placement.""")
+tf.app.flags.DEFINE_integer('log_frequency', 10,
+                            """How often to log results to the console.""")
 
 def train(dataset, all_symbols):
     """
     Train the model for a number of steps
     :return:
     """
-
-    TRAIN_STEP = 1000
 
     global_step = tf.train.get_or_create_global_step()
 
@@ -34,11 +44,12 @@ def train(dataset, all_symbols):
     logits = model.inference(features)
 
     # Calculate loss
-    loss, acc = model.loss(logits, labels)
+    loss, acc, auc, auc_op = model.loss(logits, labels)
 
     # Add to tensorboard
     loss_hist = tf.summary.scalar('total_loss', loss)
     acc_hist = tf.summary.scalar('mean_acc', acc)
+    auc_hist = tf.summary.scalar('mean_acc', auc)
 
     summary_op = tf.summary.merge_all()
 
@@ -54,15 +65,15 @@ def train(dataset, all_symbols):
     with tf.train.MonitoredTrainingSession(
             scaffold=scaffold,
             checkpoint_dir='checkpoint',
-            save_summaries_steps=10,
-            hooks=[tf.train.StopAtStepHook(last_step=TRAIN_STEP),
+            save_summaries_steps=FLAGS.log_frequency,
+            hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                    tf.train.NanTensorHook(loss),
-                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc}, every_n_iter=1),
-                   tf.train.SummarySaverHook(save_steps=10, output_dir='logs', summary_op=summary_op)],
+                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=1),
+                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir='logs', summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():
-            mon_sess.run(train_op)
+            mon_sess.run([train_op, auc_op])
 
 
 def main(argv):
