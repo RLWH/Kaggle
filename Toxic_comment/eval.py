@@ -3,9 +3,8 @@ Evaluation script
 """
 
 import tensorflow as tf
-import numpy as np
 import data_input
-import csv
+import time
 
 from config import config
 from model import Model
