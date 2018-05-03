@@ -92,7 +92,7 @@ def main(argv):
     table = tf.contrib.lookup.index_table_from_tensor(
         mapping=tf.constant(all_symbols), num_oov_buckets=1, default_value=-1)
 
-    train_dataset = data_input.read_data("data/train.tfrecords")
+    train_dataset = data_input.read_data("data/train.tfrecords").repeat(config.NUM_EPOCHS)
     train_input = data_input.train_eval_input_fn(train_dataset, table, batch_size=config.BATCH_SIZE)
 
     train(train_input, all_symbols)
