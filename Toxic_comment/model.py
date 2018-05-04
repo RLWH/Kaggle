@@ -115,9 +115,10 @@ class Model:
             dense2 = tf.layers.dense(dropout1, units=self.DENSE2_UNIT, activation=tf.nn.relu)
 
         with tf.variable_scope("pred"):
-            logits = tf.layers.dense(inputs=dense2, units=self.num_class)
+            logits = tf.layers.dense(inputs=dense2, units=self.num_class, name='logit')
+            prediction = tf.nn.softmax(logits, name='softmax_output')
 
-        return logits
+        return logits, prediction
 
     def loss(self, logits, labels):
         """
@@ -132,20 +133,7 @@ class Model:
         cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
         tf.add_to_collection('losses', cross_entropy_mean)
 
-        prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
-
-        correct_prediction_op = tf.equal(tf.cast(prediction_op, tf.float32), tf.cast(labels, tf.float32))
-        mean_accuracy = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
-        tf.add_to_collection('mean_acc', mean_accuracy)
-
-        auc_score, auc_op = tf.metrics.auc(labels, tf.cast(prediction_op, tf.float32))
-        mean_auc = tf.reduce_mean(auc_score)
-        tf.add_to_collection('mean_auc', mean_auc)
-
-        return tf.add_n(tf.get_collection('losses'), name='total_loss'), \
-               tf.reduce_mean(tf.get_collection('mean_acc'), reduction_indices=0, name='total_mean_acc'), \
-                tf.reduce_mean(tf.get_collection('mean_auc'), reduction_indices=0, name='total_mean_auc'), \
-                auc_op
+        return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
     def train(self, total_loss, global_step):
         """

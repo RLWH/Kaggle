@@ -19,14 +19,14 @@ tf.app.flags.DEFINE_string('eval_data', 'train_eval',
                            """Either 'test' or 'train_eval'.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 60 * 5,
                             """How often to run the eval. """)
-tf.app.flags.DEFINE_integer('batch_size', 256,
+tf.app.flags.DEFINE_integer('batch_size', 10,
                             """Batch size of each eval """)
 tf.app.flags.DEFINE_string('checkpoint_dir', '/checkpoint',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_boolean('run_once', False,
                          """Whether to run eval only once.""")
 
-def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_writer):
+def evaluate_once(graph, iterator, auc, acc, auc_update_op, accuracy_update_op, summary_op, saver, summary_writer):
 
     with tf.Session(graph=graph) as sess:
 
@@ -49,7 +49,7 @@ def evaluate_once(graph, iterator, auc, acc, auc_op, summary_op, saver, summary_
             print("No checkpoint found")
             return
 
-        sess.run(auc_op)
+        sess.run([auc_update_op, accuracy_update_op])
         auc_val, acc_val, summary = sess.run([auc, acc, summary_op])
         summary_writer.add_summary(summary, global_step)
 
@@ -83,17 +83,21 @@ def evaluate():
         features, labels = iterator.get_next()
 
         # Infer the logits and loss
-        logits = model.inference(features, training=False)
-        _, acc, auc, auc_op = model.loss(logits, labels)
+        logits, prediction = model.inference(features, training=False)
+        loss = model.loss(logits, labels)
 
-        # Calculate predictions
-        prediction_op = tf.greater(logits, config.PRED_THRESHOLD)
+        # Calculating the accuracy and auc
+        correct_prediction = tf.greater(prediction, config.PRED_THRESHOLD)
+        accuracy, accuracy_update_op = tf.metrics.accuracy(labels, tf.cast(correct_prediction, tf.int64))
+        auc, auc_update_op = tf.metrics.auc(labels, prediction)
 
-        correct_prediction_op = tf.equal(tf.cast(prediction_op, tf.float32), tf.round(labels))
-        mean_accuracy_op = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
+        mean_accuracy = tf.reduce_mean(accuracy)
+        mean_auc = tf.reduce_mean(auc)
 
-        auc_hist = tf.summary.scalar('auc', auc)
-        mean_accuracy_history = tf.summary.scalar('mean_acc', mean_accuracy_op)
+        # Add to tensorboard
+        loss_hist = tf.summary.scalar('total_loss', loss)
+        acc_hist = tf.summary.scalar('mean_acc', mean_accuracy)
+        auc_hist = tf.summary.scalar('mean_auc', mean_auc)
 
         summary_op = tf.summary.merge_all()
 
@@ -102,7 +106,8 @@ def evaluate():
         summary_writer = tf.summary.FileWriter(FLAGS.eval_dir)
 
         while True:
-            evaluate_once(g, iterator, auc, acc, auc_op, summary_op, saver, summary_writer)
+            evaluate_once(g, iterator, auc, accuracy, accuracy_update_op, auc_update_op,
+                          summary_op, saver, summary_writer)
             if FLAGS.run_once:
                 break
             time.sleep(FLAGS.eval_interval_secs)

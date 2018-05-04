@@ -16,13 +16,13 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('train_dir', 'logs/train',
                            """Directory where to write event logs.""")
-tf.app.flags.DEFINE_integer('max_steps', 1000000,
+tf.app.flags.DEFINE_integer('max_steps', 10,
                             """Maximum steps of the run""")
 tf.app.flags.DEFINE_string('checkpoint_dir', 'checkpoint',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', True,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_integer('log_frequency', 100,
+tf.app.flags.DEFINE_integer('log_frequency', 1,
                             """How often to log results to the console.""")
 
 def train(dataset, all_symbols):
@@ -41,15 +41,23 @@ def train(dataset, all_symbols):
     features, labels = iterator.get_next()
 
     # Infer the logits and loss
-    logits = model.inference(features, training=True)
+    logits, prediction = model.inference(features, training=True)
 
     # Calculate loss
-    loss, acc, auc, auc_op = model.loss(logits, labels)
+    loss = model.loss(logits, labels)
+
+    # Calculating the accuracy and auc
+    correct_prediction = tf.greater(prediction, config.PRED_THRESHOLD)
+    accuracy, accuracy_update_op = tf.metrics.accuracy(labels, tf.cast(correct_prediction, tf.int64))
+    auc, auc_update_op = tf.metrics.auc(labels, prediction)
+
+    mean_accuracy = tf.reduce_mean(accuracy)
+    mean_auc = tf.reduce_mean(auc)
 
     # Add to tensorboard
     loss_hist = tf.summary.scalar('total_loss', loss)
-    acc_hist = tf.summary.scalar('mean_acc', acc)
-    auc_hist = tf.summary.scalar('mean_acc', auc)
+    acc_hist = tf.summary.scalar('mean_acc', mean_accuracy)
+    auc_hist = tf.summary.scalar('mean_auc', mean_auc)
 
     summary_op = tf.summary.merge_all()
 
@@ -68,12 +76,14 @@ def train(dataset, all_symbols):
             save_summaries_steps=FLAGS.log_frequency,
             hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                    tf.train.NanTensorHook(loss),
-                   tf.train.LoggingTensorHook({"loss": loss, "acc": acc, "auc": auc}, every_n_iter=FLAGS.log_frequency),
-                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir=FLAGS.train_dir, summary_op=summary_op)],
+                   tf.train.LoggingTensorHook({"loss": loss, "acc": mean_accuracy, "auc": mean_auc,
+                                               "prediction": prediction}, every_n_iter=FLAGS.log_frequency),
+                   tf.train.SummarySaverHook(save_steps=FLAGS.log_frequency, output_dir=FLAGS.train_dir,
+                                             summary_op=summary_op)],
             config=tf.ConfigProto(log_device_placement=False)) as mon_sess:
 
         while not mon_sess.should_stop():
-            mon_sess.run([train_op, auc_op])
+            mon_sess.run([train_op, accuracy_update_op, auc_update_op])
 
 
 def main(argv):
