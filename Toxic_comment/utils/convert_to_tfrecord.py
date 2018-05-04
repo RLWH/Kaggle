@@ -45,31 +45,6 @@ def _dtype_feature(ndarray):
         raise ValueError(("The input should be numpy ndarray. Instaed got %s" % ndarray.dtype))
 
 
-def convert_multiclass(df, feature_cols, multiclass_cols):
-    """
-    A function that convert multiclass labels into single-coded label
-    :param df:
-    :param multiclass_cols:
-    :return:
-    """
-
-    # Create a copy of dataframe
-    df_temp = df.loc[:, feature_cols]
-    label = df.loc[:, multiclass_cols].sum(axis=1)
-    df_temp = df_temp.assign(label=label)
-
-    # Setup the base dataframe
-    df_copy = df_temp.loc[df_temp['label'] == 0]
-
-    # Loop the list and append the dataframe
-    for index, label in enumerate(multiclass_cols):
-        subset = df.loc[df[label] == 1, feature_cols]
-        subset = subset.assign(label=int(index + 1))
-        df_copy = df_copy.append(subset)
-
-    return df_copy
-
-
 def convert_to_tf_record(X, Y=None, filename=None, verbose=True):
     """
     Reference: https://gist.github.com/swyoon/8185b3dcf08ec728fb22b99016dd533f
