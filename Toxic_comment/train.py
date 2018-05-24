@@ -16,13 +16,13 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('train_dir', 'logs/train',
                            """Directory where to write event logs.""")
-tf.app.flags.DEFINE_integer('max_steps', 10,
+tf.app.flags.DEFINE_integer('max_steps', 100000,
                             """Maximum steps of the run""")
 tf.app.flags.DEFINE_string('checkpoint_dir', 'checkpoint',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', True,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_integer('log_frequency', 1,
+tf.app.flags.DEFINE_integer('log_frequency', 100,
                             """How often to log results to the console.""")
 
 def train(dataset, all_symbols):
