@@ -13,7 +13,7 @@ def train():
 
     # Check GPU Status
     print("Checking GPU status")
-    if torch.cuda.is_available:
+    if torch.cuda.is_available():
         device = torch.device("cuda:0")
     else:
         device = torch.device("cpu")
