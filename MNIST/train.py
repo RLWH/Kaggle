@@ -87,7 +87,7 @@ def train():
             labels_count += labels.size(0)
             correct_count += (predicted == labels).sum().item()
 
-            if i % 500 == 499:
+            if i % 100 == 99:
                 print('[%d, %5d] loss: %.3f - Training Accuracy:%.3f' % (epoch + 1, i + 1, running_loss/500,
                                                                 correct_count/labels_count * 100))
                 running_loss = 0
