@@ -11,6 +11,15 @@ from torchvision import transforms
 
 def train():
 
+    # Check GPU Status
+    print("Checking GPU status")
+    if torch.cuda.is_available:
+        device = torch.device("cuda:0")
+    else:
+        device = torch.device("cpu")
+    # Assume that we are on a CUDA machine, then this should print a CUDA device:
+    print("Using device %s" % device)
+
     # Load the dataset
     transform = transforms.Compose([ToTensor(), Normalization()])
     target_transform = transforms.Compose([ToTensor()])
@@ -39,6 +48,7 @@ def train():
     # Load Model
     print("Loading Model...")
     net = LeNet5()
+    net.to(device)
     print(net)
 
     # Define Loss
@@ -58,6 +68,9 @@ def train():
 
             # Fetch the inputs
             inputs, labels = data
+
+            # Send the inputs and labels to device
+            inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
             optimizer.zero_grad()
