@@ -23,7 +23,7 @@ class LeNet5(nn.Module):
         self.bn2 = nn.BatchNorm2d(16)
 
         # FC Layers
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc1 = nn.Linear(16 * 4 * 4, 120)
         self.fc2 = nn.Linear(120, 84)
         self.out = nn.Linear(84, 10)
 
