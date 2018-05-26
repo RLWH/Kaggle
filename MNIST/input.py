@@ -45,13 +45,13 @@ class MNISTDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        image = self.data.iloc[idx, 1:].as_matrix().astype('float').reshape(1, 28, 28)
-
-        if self.transform:
-            image = self.transform(image)
-
         if self.mode != "test":
+
+            image = self.data.iloc[idx, 1:].as_matrix().astype('float').reshape(1, 28, 28)
             label = self.data.iloc[idx, 0]
+
+            if self.transform:
+                image = self.transform(image)
 
             # if self.target_transform:
             #     label = self.target_transform(label)
@@ -59,7 +59,12 @@ class MNISTDataset(Dataset):
             return image.float(), label
 
         else:
-            return image
+            image = self.data.iloc[idx, 0:].as_matrix().astype('float').reshape(1, 28, 28)
+
+            if self.transform:
+                image = self.transform(image)
+
+            return image.float()
 
 
 class ToTensor(object):

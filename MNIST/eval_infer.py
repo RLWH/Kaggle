@@ -1,5 +1,6 @@
 import torch
 import argparse
+import numpy as np
 
 from model import LeNet5
 from input import MNISTDataset, ToTensor, Normalization
@@ -56,7 +57,10 @@ def infer(path):
             images = data
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
-            all_predictions.extend(predicted)
+            all_predictions.append(predicted)
+
+    all_predictions = torch.cat(all_predictions, dim=0)
+    np.savetxt("output.csv", all_predictions.int().numpy(), fmt='%d', delimiter=',')
 
 
 def load_model(model_path):
