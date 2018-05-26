@@ -22,20 +22,11 @@ def train():
 
     # Load the dataset
     transform = transforms.Compose([ToTensor(), Normalization()])
-    target_transform = transforms.Compose([ToTensor()])
 
-    train_dataset = MNISTDataset(mode="train", transform=transform,target_transform=target_transform)
+    train_dataset = MNISTDataset(mode="train", transform=transform)
     trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=2)
 
-    eval_dataset = MNISTDataset(mode="eval", transform=transform, target_transform=target_transform)
-    evalloader = torch.utils.data.DataLoader(eval_dataset)
-
-    test_dataset = MNISTDataset(mode="test", transform=transform)
-    testloader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=True, num_workers=2)
-
     print("Train Dataset size: %s" % len(train_dataset))
-    print("Eval Dataset size: %s" % len(eval_dataset))
-    print("Test Dataset size: %s" % len(test_dataset))
 
     # Try some samples
     # dataiter = iter(trainloader)
@@ -48,6 +39,7 @@ def train():
     # Load Model
     print("Loading Model...")
     net = LeNet5()
+    net.train()
     net.to(device)
     print(net)
 
@@ -56,6 +48,7 @@ def train():
     optimizer = optim.Adam(net.parameters(), lr=0.003)
 
     print("Start training...")
+
     for epoch in range(10):
 
         print("Epoch %s started..." % epoch)
@@ -63,6 +56,7 @@ def train():
         running_loss = 0.0
         correct_count = 0.0
         labels_count = 0.0
+        best_accuracy = 0.0
 
         for i, data in enumerate(trainloader, 0):
 
@@ -87,19 +81,19 @@ def train():
             labels_count += labels.size(0)
             correct_count += (predicted == labels).sum().item()
 
-            if i % 100 == 99:
+            if i % 50 == 49:
                 print('[%d, %5d] loss: %.3f - Training Accuracy:%.3f' % (epoch + 1, i + 1, running_loss/500,
                                                                 correct_count/labels_count * 100))
                 running_loss = 0
                 labels_count = 0
                 correct_count = 0
 
+        # Evaluate accuracy
+        acc = correct_count/labels_count * 100
+        print("Epoch %s finished. Accuracy: %s" % (epoch, acc))
 
-    # Print model parameters
-    params = list(net.parameters())
-    print(len(params))
-    print([param.size() for param in params])
-
+    print("Finished training. Saving model...")
+    torch.save(net.state_dict(), 'MNIST_le_5.pt')
 
 if __name__ == "__main__":
     train()

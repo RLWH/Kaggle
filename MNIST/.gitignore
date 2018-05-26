@@ -6,4 +6,5 @@ data/*
 *.csv
 *.xls
 *.xlsx
+*.pt
 .DS_Store
