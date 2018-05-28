@@ -76,15 +76,19 @@ class Net2(nn.Module):
         # - Fc (120) - Fc (84) - Fc (10)
 
         # Convolutional layers
-        self.conv1 = nn.Conv2d(1, 32, 5, padding=2)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.conv1_1 = nn.Conv2d(1, 32, 5, padding=2)
+        self.conv1_2 = nn.Conv2d(32, 32, 5, padding=2)
+
+        # Convolutional layers 2
+        self.conv2_1 = nn.Conv2d(32, 64, 3, padding=1)
+        self.conv2_2 = nn.Conv2d(64, 64, 3, padding=1)
 
         # BatchNorm layers
         self.bn1 = nn.BatchNorm2d(32)
         self.bn2 = nn.BatchNorm2d(64)
 
         # FC Layers
-        self.fc1 = nn.Linear(64 * 28 * 28, 120)
+        self.fc1 = nn.Linear(64 * 7 * 7, 120)
         self.fc2 = nn.Linear(120, 84)
         self.out = nn.Linear(84, 10)
 
@@ -94,17 +98,17 @@ class Net2(nn.Module):
     def forward(self, x):
 
         # Conv Block 1
-        x = self.conv1(x)
+        x = self.conv1_1(x)
         x = F.relu(x)
-        x = self.conv1(x)
+        x = self.conv1_2(x)
         x = F.relu(x)
         x = self.bn1(x)
         x = F.max_pool2d(x, kernel_size=2)
 
         # Conv Block 2
-        x = self.conv2(x)
+        x = self.conv2_1(x)
         x = F.relu(x)
-        x = self.conv2(x)
+        x = self.conv2_2(x)
         x = F.relu(x)
         x = self.bn2(x)
         x = F.max_pool2d(x, kernel_size=2)
