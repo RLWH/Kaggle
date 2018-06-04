@@ -2,7 +2,7 @@ import torch
 import argparse
 import numpy as np
 
-from model import LeNet5
+from model import LeNet5, Net2
 from input import MNISTDataset, ToTensor, Normalization
 from torchvision import transforms
 
@@ -23,7 +23,8 @@ def eval(path):
     evalloader = torch.utils.data.DataLoader(eval_dataset, batch_size=128, num_workers=2)
     print("Eval Dataset Loaded. Size: %s" % len(eval_dataset))
 
-    net = LeNet5()
+    # net = LeNet5()
+    net = Net2()
     net.load_state_dict(torch.load(path))
     net.eval()
 
@@ -46,7 +47,8 @@ def infer(path):
     testloader = torch.utils.data.DataLoader(test_dataset, batch_size=128, num_workers=2)
     print("Test Dataset Loaded. Size: %s" % len(test_dataset))
 
-    net = LeNet5()
+    # net = LeNet5()
+    net = Net2()
     net.load_state_dict(torch.load(path))
     net.eval()
 
@@ -72,6 +74,7 @@ def load_model(model_path):
         net = torch.load(model_path,map_location=lambda storage, loc: storage)
 
     return net
+
 
 if __name__ == "__main__":
 

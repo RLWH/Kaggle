@@ -65,6 +65,10 @@ class LeNet5(nn.Module):
 
 
 class Net2(nn.Module):
+    """
+    CNN Network inspired by Yassine Ghouzam in Kaggle
+    https://www.kaggle.com/yassineghouzam/introduction-to-cnn-keras-0-997-top-6
+    """
 
     def __init__(self):
         # Override the Net object

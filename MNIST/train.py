@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-from model import LeNet5
+from model import LeNet5, Net2
 from input import MNISTDataset, ToTensor, Normalization
 from torchvision import transforms
 
@@ -38,7 +38,7 @@ def train():
 
     # Load Model
     print("Loading Model...")
-    net = LeNet5()
+    net = Net2()
     net.train()
     net.to(device)
     print(net)
@@ -49,14 +49,14 @@ def train():
 
     print("Start training...")
 
-    for epoch in range(10):
+    for epoch in range(20):
 
         print("Epoch %s started..." % epoch)
 
         running_loss = 0.0
         correct_count = 0.0
         labels_count = 0.0
-        best_accuracy = 0.0
+        # best_accuracy = 0.0
 
         for i, data in enumerate(trainloader, 0):
 
@@ -93,7 +93,7 @@ def train():
         print("Epoch %s finished. Accuracy: %s" % (epoch, acc))
 
     print("Finished training. Saving model...")
-    torch.save(net.state_dict(), 'MNIST_le_5.pt')
+    torch.save(net.state_dict(), 'MNIST_Net2.pt')
 
 if __name__ == "__main__":
     train()
