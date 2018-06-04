@@ -1,8 +1,6 @@
 *.csv
 *.zip
 *.png
-*.xlsx
-*.xls
 .idea/*
 .ipynb_checkpoints/*
 .DS_Store
