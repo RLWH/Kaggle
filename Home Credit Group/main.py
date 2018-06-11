@@ -1,6 +1,8 @@
 import pandas as pd
+import numpy as np
 import xgboost as xgb
 
+from abc import ABCMeta, abstractclassmethod
 from sklearn.model_selection import train_test_split
 
 
@@ -62,13 +64,43 @@ DTYPES_TRANSFORM_COLS = {
 }
 
 SERIES_TRANSFORMATION_COLS = {
-    'DAYS_EMPLOYED': {'action': 'replace', 'parameters': {'to_replace': 365243}}
+    'DAYS_EMPLOYED': {'action': 'replace', 'parameters': {'to_replace': 365243}, 'assign': 'DAYS_EMPLOYED'},
+    'DAYS_REGISTRATION': {'action': 'apply',
+                          'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
+                          'assign': 'LOG_DAYS_REGISTRATION'},
+    'DAYS_ID_PUBLISH': {'action': 'apply',
+                              'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
+                              'assign': 'LOG_DAYS_ID_PUBLISH'},
 }
 
-# LOG_AMT_INCOME_TOTAL = train_dataset.AMT_INCOME_TOTAL.apply(np.log1p)
-# train_dataset_transformed = train_dataset.assign(LOG_AMT_INCOME_TOTAL=LOG_AMT_INCOME_TOTAL)
-
 LABEL_COLUMN = 'TARGET'
+
+# Model
+hparams = {
+    'max_depth': 10,
+    'eta': 1,
+    'silent': 1,
+    'objective': 'binary:logistic',
+
+}
+
+
+class Model(object):
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self):
+        pass
+
+    @abstractclassmethod
+    def train(self):
+        raise NotImplementedError()
+
+    @abstractclassmethod
+    def val(self):
+        raise NotImplementedError()
+
+
 
 
 def load_data(file_path, feature_columns, label_column, set_index=None, verbose=False):
@@ -89,13 +121,16 @@ def load_data(file_path, feature_columns, label_column, set_index=None, verbose=
 
 
 
-def split_data(features, target, test_size=0.1, random_state=42):
+def split_data(features, target, test_size=0.1, random_state=42, verbose=False):
+
+    if verbose:
+        print("Splitting data...")
 
     # Split the dataframe to features and target
     X_train, X_val, y_train, y_val = train_test_split(features,
                                                       target,
                                                       test_size=test_size,
-                                                      random_state=42,
+                                                      random_state=random_state,
                                                       stratify=target)
 
     return X_train, X_val, y_train, y_val
@@ -118,9 +153,12 @@ def transform(dataframe, verbose=False):
     for _, (field_name, action) in enumerate(SERIES_TRANSFORMATION_COLS.items()):
         print("Transforming %s with function %s and parameters %s" %
               (field_name, action['action'], action['parameters']))
-        dataframe[field_name] = getattr(dataframe[field_name], action['action'])(**action['parameters'])
+        series = getattr(dataframe[field_name], action['action'])(**action['parameters'])
+        dataframe = dataframe.assign(**{action['assign']: series})
 
     return dataframe
+
+
 
 
 def train():
@@ -133,6 +171,11 @@ def train():
     print(transformed_features.info(verbose=True))
     # Validation
     print(transformed_features[transformed_features.DAYS_EMPLOYED == 365243])
+    print(transformed_features.LOG_DAYS_REGISTRATION)
+
+    # Split dataset
+    X_train, X_val, y_train, y_val = split_data(features, target)
+
 
 
 
