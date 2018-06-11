@@ -65,10 +65,6 @@ SERIES_TRANSFORMATION_COLS = {
     'DAYS_EMPLOYED': {'action': 'replace', 'parameters': {'to_replace': 365243}}
 }
 
-APPLY_TRANSFORMATION_COLS = {
-    'AMT_INCOME_TOTAL': {'action': }
-}
-
 # LOG_AMT_INCOME_TOTAL = train_dataset.AMT_INCOME_TOTAL.apply(np.log1p)
 # train_dataset_transformed = train_dataset.assign(LOG_AMT_INCOME_TOTAL=LOG_AMT_INCOME_TOTAL)
 
