@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+import matplotlib.pyplot as plt
 
 from abc import ABCMeta, abstractclassmethod
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 
 FEATURE_COLUMNS = [
@@ -73,15 +75,23 @@ SERIES_TRANSFORMATION_COLS = {
                               'assign': 'LOG_DAYS_ID_PUBLISH'},
 }
 
+DROP_COLS_BEFORE_TRAINING = ['SK_ID_CURR', 'DAYS_REGISTRATION', 'DAYS_ID_PUBLISH']
+
 LABEL_COLUMN = 'TARGET'
 
 # Model
-hparams = {
+XGB_HPARAMS = {
     'max_depth': 10,
     'eta': 1,
-    'silent': 1,
+    'silent': 0,
     'objective': 'binary:logistic',
+    'nthread': 4,
+    'eval_metric': 'auc'
+}
 
+TRAIN_PARAMS = {
+    'num_boost_round': 30,
+    'early_stopping_round': 30
 }
 
 
@@ -89,17 +99,58 @@ class Model(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
-        pass
+    def __init__(self, hparams, pretrained_model=None):
+        self.hparams = hparams
+        if pretrained_model:
+            self.model = pretrained_model
+        else:
+            self.model = None
 
     @abstractclassmethod
-    def train(self):
+    def train(self, dtrain, dval=None, num_round=None):
         raise NotImplementedError()
 
     @abstractclassmethod
-    def val(self):
+    def val(self, dtest, y_true):
         raise NotImplementedError()
 
+    @abstractclassmethod
+    def infer(self, model, export=False):
+        raise NotImplementedError()
+
+
+class XGBModel(Model):
+    """
+    XGBoostModel
+    """
+
+    def train(self, dtrain, evallist=None, num_round=None):
+        """
+
+        :param train_X:
+        :param train_Y:
+        :return:
+        """
+        print("Start training model...")
+
+        if evallist:
+            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=True, evals=evallist)
+        else:
+            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=True)
+
+        bst.save_model("xgb.model")
+
+        self.model = bst
+
+        return bst
+
+    def val(self, dtest, y_true, threshold=0.5):
+
+        y_pred = (self.model.predict(dtest, ntree_limit=self.model.best_iteration) > threshold).astype(int)
+        y_true = y_true.as_matrix()
+
+        print(accuracy_score(y_true, y_pred))
+        print(confusion_matrix(y_true, y_pred))
 
 
 
@@ -136,6 +187,13 @@ def split_data(features, target, test_size=0.1, random_state=42, verbose=False):
     return X_train, X_val, y_train, y_val
 
 
+def generate_params_set(model='xgb'):
+
+    if model == xgb:
+        # Generate params for xgboost models
+        pass
+
+
 def transform(dataframe, verbose=False):
     """
     Return a transformed dataframe
@@ -149,6 +207,9 @@ def transform(dataframe, verbose=False):
             print("Coercing dtype of %s to %s" % (field_name, target_type))
         dataframe[field_name] = dataframe[field_name].astype(target_type)
 
+        if target_type == "category":
+            dataframe[field_name] = dataframe[field_name].cat.codes
+
     # 2. ADHOC TRANSFORMATION
     for _, (field_name, action) in enumerate(SERIES_TRANSFORMATION_COLS.items()):
         print("Transforming %s with function %s and parameters %s" %
@@ -156,9 +217,10 @@ def transform(dataframe, verbose=False):
         series = getattr(dataframe[field_name], action['action'])(**action['parameters'])
         dataframe = dataframe.assign(**{action['assign']: series})
 
+    # 3. Drop unused columns
+    dataframe = dataframe.drop(columns=DROP_COLS_BEFORE_TRAINING, axis=1)
+
     return dataframe
-
-
 
 
 def train():
@@ -169,14 +231,26 @@ def train():
 
     transformed_features = transform(features, verbose=True)
     print(transformed_features.info(verbose=True))
-    # Validation
-    print(transformed_features[transformed_features.DAYS_EMPLOYED == 365243])
-    print(transformed_features.LOG_DAYS_REGISTRATION)
 
     # Split dataset
     X_train, X_val, y_train, y_val = split_data(features, target)
 
+    # Transform the dataset for xgb
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    deval = xgb.DMatrix(X_val, label=y_val)
 
+    evallist = [(deval, 'eval'), (dtrain, 'train')]
+
+    # Build model
+    model = XGBModel(XGB_HPARAMS)
+    bst = model.train(dtrain, evallist, num_round=10)
+
+    # Plot the analysis
+    xgb.plot_importance(bst)
+    plt.show()
+
+    # Plot the confusion matrix
+    model.val(dtest=deval, y_true=y_val)
 
 
 if __name__ == "__main__":
