@@ -79,35 +79,23 @@ DROP_COLS_BEFORE_TRAINING = ['SK_ID_CURR', 'DAYS_REGISTRATION', 'DAYS_ID_PUBLISH
 
 LABEL_COLUMN = 'TARGET'
 
-# Model
-XGB_HPARAMS = {
-    'max_depth': 10,
-    'eta': 1,
-    'silent': 0,
-    'objective': 'binary:logistic',
-    'nthread': 4,
-    'eval_metric': 'auc'
-}
-
-TRAIN_PARAMS = {
-    'num_boost_round': 30,
-    'early_stopping_round': 30
-}
-
 
 class Model(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, hparams, pretrained_model=None):
+    def __init__(self, hparams, pretrained_model=None, trial=0):
         self.hparams = hparams
+        self.trial = trial
+        print("Model built with hparams %s" % self.hparams)
         if pretrained_model:
             self.model = pretrained_model
         else:
             self.model = None
 
     @abstractclassmethod
-    def train(self, dtrain, dval=None, num_round=None):
+    def train(self, dtrain, evallist=None, num_round=None, verbose=False):
+        print("Start training model")
         raise NotImplementedError()
 
     @abstractclassmethod
@@ -124,21 +112,21 @@ class XGBModel(Model):
     XGBoostModel
     """
 
-    def train(self, dtrain, evallist=None, num_round=None):
+    def train(self, dtrain, evallist=None, num_round=None, verbose=False):
         """
 
         :param train_X:
         :param train_Y:
         :return:
         """
-        print("Start training model...")
 
         if evallist:
-            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=True, evals=evallist)
+            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=verbose,
+                            early_stopping_rounds=10, evals=evallist)
         else:
-            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=True)
+            bst = xgb.train(self.hparams, dtrain, num_boost_round=num_round, verbose_eval=verbose)
 
-        bst.save_model("xgb.model")
+        bst.save_model("xgb.model_%s" % self.trial)
 
         self.model = bst
 
@@ -153,17 +141,19 @@ class XGBModel(Model):
         print(confusion_matrix(y_true, y_pred))
 
 
-
-def load_data(file_path, feature_columns, label_column, set_index=None, verbose=False):
+def load_data(file_path, feature_columns, label_column=None, set_index=None, verbose=False):
 
     dataframe = pd.read_csv(file_path)
     features = dataframe.loc[:, feature_columns]
 
-    target = dataframe[label_column]
+    if label_column:
+        target = dataframe[label_column]
 
     if verbose:
-        print(features.info(verbose=True))
-        print(target.value_counts())
+        print(features.info(verbose=verbose))
+
+        if label_column:
+            print(target.value_counts())
 
     if set_index is not None:
         dataframe.set_index(set_index)
@@ -171,8 +161,7 @@ def load_data(file_path, feature_columns, label_column, set_index=None, verbose=
     return features, target
 
 
-
-def split_data(features, target, test_size=0.1, random_state=42, verbose=False):
+def split_data(features, target=None, test_size=0.1, random_state=42, verbose=False):
 
     if verbose:
         print("Splitting data...")
@@ -187,11 +176,29 @@ def split_data(features, target, test_size=0.1, random_state=42, verbose=False):
     return X_train, X_val, y_train, y_val
 
 
-def generate_params_set(model='xgb'):
+def generate_params_set(model='xgb', num_trials=10):
 
-    if model == xgb:
-        # Generate params for xgboost models
-        pass
+    if model == 'xgb':
+
+        trials = []
+
+        # Generate n trials
+        for i in range(num_trials):
+
+            XGB_HPARAMS = {
+                'max_depth': np.power(2, np.random.randint(8)),
+                'min_child_weight': np.random.randint(15),
+                'gamma': np.power(2, np.random.randint(4)),
+                'eta': np.round(np.random.uniform(low=0.5), decimals=2),
+                'objective': 'binary:logistic',
+                'nthread': 4,
+                'eval_metric': 'auc',
+                'silent': 1
+            }
+
+            trials.append(XGB_HPARAMS)
+
+        return trials
 
 
 def transform(dataframe, verbose=False):
@@ -241,16 +248,33 @@ def train():
 
     evallist = [(deval, 'eval'), (dtrain, 'train')]
 
-    # Build model
-    model = XGBModel(XGB_HPARAMS)
-    bst = model.train(dtrain, evallist, num_round=10)
+    # Generate hyperparameters
+    hparams_set = generate_params_set('xgb', num_trials=10)
 
-    # Plot the analysis
-    xgb.plot_importance(bst)
-    plt.show()
+    best_scores = []
+    best_round = []
 
-    # Plot the confusion matrix
-    model.val(dtest=deval, y_true=y_val)
+    # Build model for each hparams set
+    for i, hparam in enumerate(hparams_set):
+
+        model = XGBModel(hparam, trial=i)
+        bst = model.train(dtrain=dtrain, evallist=evallist, num_round=30, verbose=True)
+
+        best_scores.append(bst.best_score)
+        best_round.append(bst.best_iteration)
+
+        model.val(dtest=deval, y_true=y_val)
+
+    # bst = model.train(dtrain, evallist, num_round=10)
+    #
+    # # Plot the analysis
+    # xgb.plot_importance(bst)
+    # plt.show()
+    #
+    # # Plot the confusion matrix
+
+    print(best_scores)
+    print(best_round)
 
 
 if __name__ == "__main__":
