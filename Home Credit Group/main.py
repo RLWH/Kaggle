@@ -3,43 +3,112 @@ import numpy as np
 import xgboost as xgb
 import matplotlib.pyplot as plt
 
+from functools import reduce;
 from abc import ABCMeta, abstractclassmethod
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 
-FEATURE_COLUMNS = [
-    'SK_ID_CURR',
-    'NAME_CONTRACT_TYPE',
-    'CODE_GENDER',
-    'CNT_CHILDREN',
-    'NAME_INCOME_TYPE',
-    'NAME_EDUCATION_TYPE',
-    'NAME_HOUSING_TYPE',
-    'DAYS_EMPLOYED',
-    'DAYS_REGISTRATION',
-    'DAYS_ID_PUBLISH',
-    'OWN_CAR_AGE',
-    'FLAG_MOBIL',
-    'FLAG_EMP_PHONE',
-    'FLAG_WORK_PHONE',
-    'OCCUPATION_TYPE',
-    'CNT_FAM_MEMBERS',
-    'REGION_RATING_CLIENT',
-    'ORGANIZATION_TYPE',
-    'EXT_SOURCE_1',
-    'EXT_SOURCE_2',
-    'EXT_SOURCE_3',
-    'APARTMENTS_AVG',
-    'DAYS_LAST_PHONE_CHANGE',
-    'FLAG_DOCUMENT_2',
-    'FLAG_DOCUMENT_6',
-    'FLAG_DOCUMENT_7',
-    'FLAG_DOCUMENT_14',
-    'FLAG_DOCUMENT_15',
-    'FLAG_DOCUMENT_18',
-    'FLAG_DOCUMENT_21',
-    'AMT_REQ_CREDIT_BUREAU_YEAR'
+# TRAIN_FEATURE_COLUMNS = [
+#     'SK_ID_CURR',
+#     'NAME_CONTRACT_TYPE',
+#     'CODE_GENDER',
+#     'CNT_CHILDREN',
+#     'NAME_INCOME_TYPE',
+#     'NAME_EDUCATION_TYPE',
+#     'NAME_HOUSING_TYPE',
+#     'DAYS_EMPLOYED',
+#     'DAYS_REGISTRATION',
+#     'DAYS_ID_PUBLISH',
+#     'OWN_CAR_AGE',
+#     'FLAG_MOBIL',
+#     'FLAG_EMP_PHONE',
+#     'FLAG_WORK_PHONE',
+#     'OCCUPATION_TYPE',
+#     'CNT_FAM_MEMBERS',
+#     'REGION_RATING_CLIENT',
+#     'ORGANIZATION_TYPE',
+#     'EXT_SOURCE_1',
+#     'EXT_SOURCE_2',
+#     'EXT_SOURCE_3',
+#     'APARTMENTS_AVG',
+#     'DAYS_LAST_PHONE_CHANGE',
+#     'FLAG_DOCUMENT_2',
+#     'FLAG_DOCUMENT_6',
+#     'FLAG_DOCUMENT_7',
+#     'FLAG_DOCUMENT_14',
+#     'FLAG_DOCUMENT_15',
+#     'FLAG_DOCUMENT_18',
+#     'FLAG_DOCUMENT_21',
+#     'AMT_REQ_CREDIT_BUREAU_YEAR'
+# ]
+#
+# BUREAU_FEATURE_COLUMNS = [
+#     'DAYS_ENDDATE_FACT',
+#     'AMT_CREDIT_MAX_OVERDUE'
+# ]
+
+FEATURE_FILE_LIST = [
+    {'file': 'data/application_train.csv',
+     'target': 'TARGET',
+     'features': [
+         {'column_name': 'SK_ID_CURR', 'dtype': 'int'},
+         {'column_name': 'NAME_CONTRACT_TYPE', 'dtype': 'category'},
+         {'column_name': 'CODE_GENDER', 'dtype': 'category'},
+         {'column_name': 'CNT_CHILDREN', 'dtype': 'int'},
+         {'column_name': 'NAME_INCOME_TYPE', 'dtype': 'category'},
+         {'column_name': 'NAME_EDUCATION_TYPE', 'dtype': 'category'},
+         {'column_name': 'NAME_HOUSING_TYPE', 'dtype': 'category'},
+         {'column_name': 'DAYS_EMPLOYED', 'dtype': 'int'},
+         {'column_name': 'DAYS_REGISTRATION', 'dtype': 'int'},
+         {'column_name': 'DAYS_ID_PUBLISH', 'dtype': 'int'},
+         {'column_name': 'OWN_CAR_AGE', 'dtype': 'int'},
+         {'column_name': 'FLAG_MOBIL', 'dtype': 'category'},
+         {'column_name': 'FLAG_EMP_PHONE', 'dtype': 'category'},
+         {'column_name': 'FLAG_WORK_PHONE', 'dtype': 'category'},
+         {'column_name': 'OCCUPATION_TYPE', 'dtype': 'category'},
+         {'column_name': 'CNT_FAM_MEMBERS', 'dtype': 'int'},
+         {'column_name': 'REGION_RATING_CLIENT', 'dtype': 'int'},
+         {'column_name': 'ORGANIZATION_TYPE', 'dtype': 'category'},
+         {'column_name': 'EXT_SOURCE_1', 'dtype': 'float'},
+         {'column_name': 'EXT_SOURCE_2', 'dtype': 'float'},
+         {'column_name': 'EXT_SOURCE_3', 'dtype': None},
+         {'column_name': 'APARTMENTS_AVG', 'dtype': None},
+         {'column_name': 'DAYS_LAST_PHONE_CHANGE', 'dtype': None},
+         {'column_name': 'FLAG_DOCUMENT_2', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_6', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_7', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_14', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_15', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_18', 'dtype': 'category'},
+         {'column_name': 'FLAG_DOCUMENT_21', 'dtype': 'category'},
+         {'column_name': 'AMT_REQ_CREDIT_BUREAU_YEAR', 'dtype': 'category'}],
+     'transformation': [
+         {'column_name': 'DAYS_EMPLOYED',
+          'action': 'replace',
+          'parameters': {'to_replace': 365243},
+          'assign': 'DAYS_EMPLOYED'},
+         {'column_name': 'DAYS_REGISTRATION',
+          'action': 'apply',
+          'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
+          'assign': 'LOG_DAYS_REGISTRATION'},
+         {'column_name': 'DAYS_ID_PUBLISH',
+          'action': 'apply',
+          'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
+          'assign': 'LOG_DAYS_ID_PUBLISH'}],
+     'aggregation': None
+     },
+
+    {'file': 'data/bureau.csv',
+     'target': None,
+     'features': [
+         {'column_name': 'SK_ID_CURR', 'dtype': 'int'},
+         {'column_name': 'DAYS_ENDDATE_FACT', 'dtype': 'int'},
+         {'column_name': 'AMT_CREDIT_MAX_OVERDUE', 'dtype': 'int'}],
+     'transformation': None,
+     'aggregation': 
+     }
+
 ]
 
 DTYPES_TRANSFORM_COLS = {
@@ -141,24 +210,77 @@ class XGBModel(Model):
         print(confusion_matrix(y_true, y_pred))
 
 
-def load_data(file_path, feature_columns, label_column=None, set_index=None, verbose=False):
+def load_data(feature_dict, set_index=None, how_join='left', verbose=False):
+    """
 
+    :param feature_dict: List of Dictionary of features.
+                         In the format of [{'filename': {'features': [], 'target': []}]
+    :param set_index:
+    :param verbose:
+    :return:
+    """
+
+    # Test the feature dict
+    if verbose:
+        print("Length of feature dictionary: %s" % len(feature_dict))
+
+    features_list = []
+    target = None
+
+    for i, file in enumerate(feature_dict):
+
+        if verbose:
+            print("The filename of the first file: %s" % file['file'])
+            print("The features to be extracted of the first file: %s" % file['features'])
+            print("The target to be extracted of the first file: %s" % file['target'])
+
+        if file['target'] is not None:
+
+            if verbose:
+                print("Extract with target")
+
+            file_features, target = load_individual_file(file['file'],
+                                                         feature_columns=file['features'],
+                                                         label_column=file['target'])
+        else:
+            if verbose:
+                print("Extract without target")
+            file_features = load_individual_file(file['file'],
+                                                 feature_columns=file['features'])
+
+        file_features = file_features.set_index(set_index)
+        features_list.append(file_features)
+
+
+
+    return features_list, target
+
+    # if len(features_list) > 1:
+    #     features = reduce(lambda left, right: pd.merge(left, right, how=how_join), features_list)
+    # else:
+    #     features = features_list[0]
+    #
+    # print(features)
+
+
+    # if label_column:
+    #     target = dataframe[label_column]
+    #     if label_column:
+    #         print(target.value_counts())
+    #     return features, target
+    # else:
+    #     return features
+
+
+def load_individual_file(file_path, feature_columns, label_column=None):
     dataframe = pd.read_csv(file_path)
     features = dataframe.loc[:, feature_columns]
 
     if label_column:
         target = dataframe[label_column]
-
-    if verbose:
-        print(features.info(verbose=verbose))
-
-        if label_column:
-            print(target.value_counts())
-
-    if set_index is not None:
-        dataframe.set_index(set_index)
-
-    return features, target
+        return features, target
+    else:
+        return features
 
 
 def split_data(features, target=None, test_size=0.1, random_state=42, verbose=False):
@@ -232,49 +354,50 @@ def transform(dataframe, verbose=False):
 
 def train():
     # Load the file
-    features, target = load_data('data/application_train.csv',
-                                 feature_columns=FEATURE_COLUMNS,
-                                 label_column=LABEL_COLUMN)
+    features_list, target = load_data(FEATURE_FILE_LIST, set_index='SK_ID_CURR')
 
-    transformed_features = transform(features, verbose=True)
-    print(transformed_features.info(verbose=True))
+    print(features_list[0])
+    print(features_list[1])
 
-    # Split dataset
-    X_train, X_val, y_train, y_val = split_data(features, target)
-
-    # Transform the dataset for xgb
-    dtrain = xgb.DMatrix(X_train, label=y_train)
-    deval = xgb.DMatrix(X_val, label=y_val)
-
-    evallist = [(deval, 'eval'), (dtrain, 'train')]
-
-    # Generate hyperparameters
-    hparams_set = generate_params_set('xgb', num_trials=10)
-
-    best_scores = []
-    best_round = []
-
-    # Build model for each hparams set
-    for i, hparam in enumerate(hparams_set):
-
-        model = XGBModel(hparam, trial=i)
-        bst = model.train(dtrain=dtrain, evallist=evallist, num_round=30, verbose=True)
-
-        best_scores.append(bst.best_score)
-        best_round.append(bst.best_iteration)
-
-        model.val(dtest=deval, y_true=y_val)
-
-    # bst = model.train(dtrain, evallist, num_round=10)
+    # transformed_features = transform(features, verbose=True)
+    # print(transformed_features.info(verbose=True))
     #
-    # # Plot the analysis
-    # xgb.plot_importance(bst)
-    # plt.show()
+    # # Split dataset
+    # X_train, X_val, y_train, y_val = split_data(features, target)
     #
-    # # Plot the confusion matrix
-
-    print(best_scores)
-    print(best_round)
+    # # Transform the dataset for xgb
+    # dtrain = xgb.DMatrix(X_train, label=y_train)
+    # deval = xgb.DMatrix(X_val, label=y_val)
+    #
+    # evallist = [(deval, 'eval'), (dtrain, 'train')]
+    #
+    # # Generate hyperparameters
+    # hparams_set = generate_params_set('xgb', num_trials=10)
+    #
+    # best_scores = []
+    # best_round = []
+    #
+    # # Build model for each hparams set
+    # for i, hparam in enumerate(hparams_set):
+    #
+    #     model = XGBModel(hparam, trial=i)
+    #     bst = model.train(dtrain=dtrain, evallist=evallist, num_round=30, verbose=True)
+    #
+    #     best_scores.append(bst.best_score)
+    #     best_round.append(bst.best_iteration)
+    #
+    #     model.val(dtest=deval, y_true=y_val)
+    #
+    # # bst = model.train(dtrain, evallist, num_round=10)
+    # #
+    # # # Plot the analysis
+    # # xgb.plot_importance(bst)
+    # # plt.show()
+    # #
+    # # # Plot the confusion matrix
+    #
+    # print(best_scores)
+    # print(best_round)
 
 
 if __name__ == "__main__":
