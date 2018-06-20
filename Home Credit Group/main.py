@@ -62,12 +62,12 @@ FEATURE_FILE_LIST = [
          {'column_name': 'DAYS_EMPLOYED', 'dtype': 'int'},
          {'column_name': 'DAYS_REGISTRATION', 'dtype': 'int'},
          {'column_name': 'DAYS_ID_PUBLISH', 'dtype': 'int'},
-         {'column_name': 'OWN_CAR_AGE', 'dtype': 'int'},
+         {'column_name': 'OWN_CAR_AGE', 'dtype': None},
          {'column_name': 'FLAG_MOBIL', 'dtype': 'category'},
          {'column_name': 'FLAG_EMP_PHONE', 'dtype': 'category'},
          {'column_name': 'FLAG_WORK_PHONE', 'dtype': 'category'},
          {'column_name': 'OCCUPATION_TYPE', 'dtype': 'category'},
-         {'column_name': 'CNT_FAM_MEMBERS', 'dtype': 'int'},
+         {'column_name': 'CNT_FAM_MEMBERS', 'dtype': None},
          {'column_name': 'REGION_RATING_CLIENT', 'dtype': 'int'},
          {'column_name': 'ORGANIZATION_TYPE', 'dtype': 'category'},
          {'column_name': 'EXT_SOURCE_1', 'dtype': 'float'},
@@ -84,15 +84,18 @@ FEATURE_FILE_LIST = [
          {'column_name': 'FLAG_DOCUMENT_21', 'dtype': 'category'},
          {'column_name': 'AMT_REQ_CREDIT_BUREAU_YEAR', 'dtype': 'category'}],
      'transformation': [
-         {'column_name': 'DAYS_EMPLOYED',
+         {'type': 'series',
+          'column_name': 'DAYS_EMPLOYED',
           'action': 'replace',
           'parameters': {'to_replace': 365243},
           'assign': 'DAYS_EMPLOYED'},
-         {'column_name': 'DAYS_REGISTRATION',
+         {'type': 'series',
+          'column_name': 'DAYS_REGISTRATION',
           'action': 'apply',
           'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
           'assign': 'LOG_DAYS_REGISTRATION'},
-         {'column_name': 'DAYS_ID_PUBLISH',
+         {'type': 'series',
+          'column_name': 'DAYS_ID_PUBLISH',
           'action': 'apply',
           'parameters': {'func': eval('lambda x: np.log1p(np.abs(x))')},
           'assign': 'LOG_DAYS_ID_PUBLISH'}],
@@ -103,36 +106,43 @@ FEATURE_FILE_LIST = [
      'target': None,
      'features': [
          {'column_name': 'SK_ID_CURR', 'dtype': 'int'},
-         {'column_name': 'DAYS_ENDDATE_FACT', 'dtype': 'int'},
-         {'column_name': 'AMT_CREDIT_MAX_OVERDUE', 'dtype': 'int'}],
-     'transformation': None,
-     'aggregation': 
+         {'column_name': 'DAYS_ENDDATE_FACT', 'dtype': None},
+         {'column_name': 'AMT_CREDIT_SUM_DEBT', 'dtype': None},
+         {'column_name': 'AMT_CREDIT_SUM', 'dtype': None},
+         {'column_name': 'AMT_CREDIT_MAX_OVERDUE', 'dtype': None}],
+     'transformation': [
+         {'type': 'cross-series',
+          'column_name': 'AMT_CREDIT_SUM_DEBT',
+          'action': 'div',
+          'other': 'AMT_CREDIT_SUM',
+          'parameters': {'fill_value': 0},
+          'assign': 'DEBT_TO_CREDIT'}
+     ],
+     'aggregation': {
+          'groupby': ['SK_ID_CURR'],
+          'agg_params': {
+               'CREDIT_DAY_OVERDUE': 'mean',
+               'SK_ID_CURR': 'count',
+               'AMT_CREDIT_MAX_OVERDUE': 'mean',
+               'CNT_CREDIT_PROLONG': 'mean',
+               'AMT_CREDIT_SUM': 'mean',
+               'DEBT_TO_CREDIT': 'mean'},
+          'rename': {
+              'CREDIT_DAY_OVERDUE': 'AVG_CREDIT_DAY_OVERDUE',
+              'SK_ID_CURR': 'CB_RECORD_COUNT',
+              'AMT_CREDIT_MAX_OVERDUE': 'AVG_AMT_CREDIT_MAX_OVERDUE',
+              'CNT_CREDIT_PROLONG': 'AVG_CNT_CREDIT_PROLONG',
+              'AMT_CREDIT_SUM': 'AVG_AMT_CREDIT_SUM',
+              'DEBT_TO_CREDIT': 'AVG_DEBT_TO_CREDIT'},
+          'post_transformation': [
+              {'type': 'series',
+               'column_name': 'AVG_AMT_CREDIT_MAX_OVERDUE',
+               'action': 'fillna',
+               'parameters': {'value': 0}}
+          ]}
      }
 
 ]
-
-DTYPES_TRANSFORM_COLS = {
-    'SK_ID_CURR': 'int',
-    'NAME_CONTRACT_TYPE': 'category',
-    'CODE_GENDER': 'category',
-    'NAME_INCOME_TYPE': 'category',
-    'NAME_EDUCATION_TYPE': 'category',
-    'NAME_HOUSING_TYPE': 'category',
-    'FLAG_MOBIL': 'category',
-    'FLAG_EMP_PHONE': 'category',
-    'FLAG_WORK_PHONE': 'category',
-    'OCCUPATION_TYPE': 'category',
-    'REGION_RATING_CLIENT': 'category',
-    'ORGANIZATION_TYPE': 'category',
-    'FLAG_DOCUMENT_2': 'category',
-    'FLAG_DOCUMENT_6': 'category',
-    'FLAG_DOCUMENT_7': 'category',
-    'FLAG_DOCUMENT_14': 'category',
-    'FLAG_DOCUMENT_15': 'category',
-    'FLAG_DOCUMENT_18': 'category',
-    'FLAG_DOCUMENT_21': 'category',
-    'AMT_REQ_CREDIT_BUREAU_YEAR': 'category'
-}
 
 SERIES_TRANSFORMATION_COLS = {
     'DAYS_EMPLOYED': {'action': 'replace', 'parameters': {'to_replace': 365243}, 'assign': 'DAYS_EMPLOYED'},
@@ -234,24 +244,26 @@ def load_data(feature_dict, set_index=None, how_join='left', verbose=False):
             print("The features to be extracted of the first file: %s" % file['features'])
             print("The target to be extracted of the first file: %s" % file['target'])
 
+        features_column_names = [feature_column['column_name'] for feature_column in file['features']]
+
         if file['target'] is not None:
 
             if verbose:
                 print("Extract with target")
-
             file_features, target = load_individual_file(file['file'],
-                                                         feature_columns=file['features'],
+                                                         feature_columns=features_column_names,
                                                          label_column=file['target'])
         else:
             if verbose:
                 print("Extract without target")
             file_features = load_individual_file(file['file'],
-                                                 feature_columns=file['features'])
+                                                 feature_columns=features_column_names)
 
-        file_features = file_features.set_index(set_index)
-        features_list.append(file_features)
+        # Transform the dataset
+        transformed_features = transform(file_features, feature_dict[i], verbose=True)
 
-
+        transformed_features = transformed_features.set_index(set_index)
+        features_list.append(transformed_features)
 
     return features_list, target
 
@@ -271,8 +283,73 @@ def load_data(feature_dict, set_index=None, how_join='left', verbose=False):
     # else:
     #     return features
 
+def transform(dataframe, feature_param, verbose=False):
+    """
+
+    :param dataframe:
+    :param transform_params: Dictionary. Contains, feature dtypes, transformation and aggregation.
+    :param verbose:
+    :return:
+    """
+
+    # 1. Coerce the dataset into the correct type
+    for _, x in enumerate(feature_param['features']):
+
+        target_type = x['dtype']
+
+        if target_type is not None:
+
+            if verbose:
+                print("Coercing dtype of %s to %s" % (x['column_name'], target_type))
+
+            dataframe[x['column_name']] = dataframe[x['column_name']].astype(target_type)
+
+            if target_type == "category":
+                dataframe[x['column_name']] = dataframe[x['column_name']].cat.codes
+
+        else:
+            if verbose:
+                print("No target type specified for column %s" % x['column_name'])
+
+    # # 2. ADHOC TRANSFORMATION
+    for _, x in enumerate(feature_param['transformation']):
+
+        transform_type = x['type']
+        transform_column = x['column_name']
+        action = x['action']
+        params = x['parameters']
+        assign = x['assign']
+
+        if transform_type == 'series':
+            print("Transforming %s with function %s and parameters %s. Assign to %s" %
+                  (transform_column, action, params, assign))
+            series = getattr(dataframe[transform_column], action)(**params)
+            dataframe = dataframe.assign(**{assign: series})
+
+        elif transform_type == 'cross-series':
+            other = dataframe[x['other']]
+            assert type(other) == pd.Series
+            print("Transforming %s with function %s and parameters %s, cross column %s. Assign to %s" %
+                  (transform_column, action, params, other.name, assign))
+            params = {'other': other, **params}
+
+            series = getattr(dataframe[transform_column], action)(**params)
+            dataframe = dataframe.assign(**{assign: series})
+
+    # 3. Aggregation
+    for _, x in enumerate(feature_param['aggregation']):
+        pass
+
+
+    #
+    # # 3. Drop unused columns
+    # dataframe = dataframe.drop(columns=DROP_COLS_BEFORE_TRAINING, axis=1)
+
+    return dataframe
+
 
 def load_individual_file(file_path, feature_columns, label_column=None):
+
     dataframe = pd.read_csv(file_path)
     features = dataframe.loc[:, feature_columns]
 
@@ -323,41 +400,12 @@ def generate_params_set(model='xgb', num_trials=10):
         return trials
 
 
-def transform(dataframe, verbose=False):
-    """
-    Return a transformed dataframe
-    :param dataframe:
-    :return:
-    """
-
-    # 1. Coerce the dataset into the correct type
-    for _, (field_name, target_type) in enumerate(DTYPES_TRANSFORM_COLS.items()):
-        if verbose:
-            print("Coercing dtype of %s to %s" % (field_name, target_type))
-        dataframe[field_name] = dataframe[field_name].astype(target_type)
-
-        if target_type == "category":
-            dataframe[field_name] = dataframe[field_name].cat.codes
-
-    # 2. ADHOC TRANSFORMATION
-    for _, (field_name, action) in enumerate(SERIES_TRANSFORMATION_COLS.items()):
-        print("Transforming %s with function %s and parameters %s" %
-              (field_name, action['action'], action['parameters']))
-        series = getattr(dataframe[field_name], action['action'])(**action['parameters'])
-        dataframe = dataframe.assign(**{action['assign']: series})
-
-    # 3. Drop unused columns
-    dataframe = dataframe.drop(columns=DROP_COLS_BEFORE_TRAINING, axis=1)
-
-    return dataframe
-
-
 def train():
     # Load the file
     features_list, target = load_data(FEATURE_FILE_LIST, set_index='SK_ID_CURR')
 
-    print(features_list[0])
-    print(features_list[1])
+    print(features_list[0].info())
+    print(features_list[1].info())
 
     # transformed_features = transform(features, verbose=True)
     # print(transformed_features.info(verbose=True))
