@@ -68,7 +68,9 @@ FEATURE_FILE_LIST = [
          {'column_name': 'DAYS_ENDDATE_FACT', 'dtype': None},
          {'column_name': 'AMT_CREDIT_SUM_DEBT', 'dtype': None},
          {'column_name': 'AMT_CREDIT_SUM', 'dtype': None},
-         {'column_name': 'AMT_CREDIT_MAX_OVERDUE', 'dtype': None}],
+         {'column_name': 'AMT_CREDIT_MAX_OVERDUE', 'dtype': None},
+         {'column_name': 'CREDIT_DAY_OVERDUE', 'dtype': None},
+         {'column_name': 'CNT_CREDIT_PROLONG', 'dtype': None}],
      'transformation': [
          {'type': 'cross-series',
           'column_name': 'AMT_CREDIT_SUM_DEBT',
@@ -83,6 +85,7 @@ FEATURE_FILE_LIST = [
                'CREDIT_DAY_OVERDUE': 'mean',
                'SK_ID_CURR': 'count',
                'AMT_CREDIT_MAX_OVERDUE': 'mean',
+               'DAYS_ENDDATE_FACT': 'mean',
                'CNT_CREDIT_PROLONG': 'mean',
                'AMT_CREDIT_SUM': 'mean',
                'DEBT_TO_CREDIT': 'mean'},
@@ -90,6 +93,7 @@ FEATURE_FILE_LIST = [
               'CREDIT_DAY_OVERDUE': 'AVG_CREDIT_DAY_OVERDUE',
               'SK_ID_CURR': 'CB_RECORD_COUNT',
               'AMT_CREDIT_MAX_OVERDUE': 'AVG_AMT_CREDIT_MAX_OVERDUE',
+              'DAYS_ENDDATE_FACT': 'AVG_DAYS_ENDDATE_FACT',
               'CNT_CREDIT_PROLONG': 'AVG_CNT_CREDIT_PROLONG',
               'AMT_CREDIT_SUM': 'AVG_AMT_CREDIT_SUM',
               'DEBT_TO_CREDIT': 'AVG_DEBT_TO_CREDIT'},
@@ -97,7 +101,8 @@ FEATURE_FILE_LIST = [
               {'type': 'series',
                'column_name': 'AVG_AMT_CREDIT_MAX_OVERDUE',
                'action': 'fillna',
-               'parameters': {'value': 0}}
+               'parameters': {'value': 0},
+               'assign': 'AVG_AMT_CREDIT_MAX_OVERDUE'}
           ]}
      }
 
@@ -169,7 +174,7 @@ class XGBModel(Model):
         print(confusion_matrix(y_true, y_pred))
 
 
-def load_data(feature_dict, set_index=None, how_join='left', verbose=False):
+def load_data(feature_dict, set_index=None, index_dtype='int', how_join='left', verbose=False):
     """
 
     :param feature_dict: List of Dictionary of features.
@@ -208,31 +213,22 @@ def load_data(feature_dict, set_index=None, how_join='left', verbose=False):
         transformed_features = transform(file_features, feature_dict[i], verbose=True)
 
         transformed_features = transformed_features.set_index(set_index)
+        transformed_features.index = transformed_features.index.astype(index_dtype)
+
         features_list.append(transformed_features)
 
-    return features_list, target
+    # Join the dataframes
+    df_merged = reduce(lambda left, right: pd.merge(left, right, how='left', left_index=True, right_index=True),
+                       features_list)
 
-    # if len(features_list) > 1:
-    #     features = reduce(lambda left, right: pd.merge(left, right, how=how_join), features_list)
-    # else:
-    #     features = features_list[0]
-    #
-    # print(features)
+    return df_merged, target
 
-
-    # if label_column:
-    #     target = dataframe[label_column]
-    #     if label_column:
-    #         print(target.value_counts())
-    #     return features, target
-    # else:
-    #     return features
 
 def transform(dataframe, feature_param, verbose=False):
     """
 
     :param dataframe:
-    :param transform_params: Dictionary. Contains, feature dtypes, transformation and aggregation.
+    :param feature_param: Dictionary. Contains, feature dtypes, transformation and aggregation.
     :param verbose:
     :return:
     """
@@ -261,44 +257,73 @@ def transform(dataframe, feature_param, verbose=False):
 
     # # 2. ADHOC TRANSFORMATION
     try:
-        for _, x in enumerate(feature_param['transformation']):
+        for _, transformation in enumerate(feature_param['transformation']):
 
-            transform_type = x['type']
-            transform_column = x['column_name']
-            action = x['action']
-            params = x['parameters']
-            assign = x['assign']
+            dataframe = make_transform(dataframe, transformation)
 
-            if transform_type == 'series':
-                print("Transforming %s with function %s and parameters %s. Assign to %s" %
-                      (transform_column, action, params, assign))
-                series = getattr(dataframe[transform_column], action)(**params)
-                dataframe = dataframe.assign(**{assign: series})
-
-            elif transform_type == 'cross-series':
-                other = dataframe[x['other']]
-                assert type(other) == pd.Series
-                print("Transforming %s with function %s and parameters %s, cross column %s. Assign to %s" %
-                      (transform_column, action, params, other.name, assign))
-                params = {'other': other, **params}
-
-                series = getattr(dataframe[transform_column], action)(**params)
-                dataframe = dataframe.assign(**{assign: series})
     except KeyError:
         print("No transformation required. ")
 
     # 3. Aggregation
-    try:
-        for _, x in enumerate(feature_param['aggregation']):
-            pass
 
-    except KeyError:
+    try:
+        agg_feature = feature_param['aggregation']
+        groupby = agg_feature['groupby']
+        agg_params = agg_feature['agg_params']
+        rename_after_agg = agg_feature['rename']
+        post_transformation = agg_feature['post_transformation']
+
+        dataframe_agg = dataframe.groupby(groupby).agg(agg_params)
+        dataframe_agg = dataframe_agg.rename(index=str, columns=rename_after_agg)
+
+        for _, transformation in enumerate(post_transformation):
+
+            dataframe = make_transform(dataframe_agg, transformation)
+
+        dataframe = dataframe.reset_index()
+
+    except KeyError as err:
         print("No aggregation required. ")
+        print(err)
 
 
     #
     # # 4. Drop unused columns
     # dataframe = dataframe.drop(columns=DROP_COLS_BEFORE_TRAINING, axis=1)
+
+    return dataframe
+
+
+def make_transform(dataframe, transformation, verbose=False):
+    """
+
+    :param dataframe:
+    :param transformation: Dictionary.
+    :param verbose: Boolean.
+    :return:
+    """
+
+    transform_type = transformation['type']
+    transform_column = transformation['column_name']
+    action = transformation['action']
+    params = transformation['parameters']
+    assign = transformation['assign']
+
+    if transform_type == 'series':
+        print("Transforming %s with function %s and parameters %s. Assign to %s" %
+              (transform_column, action, params, assign))
+        series = getattr(dataframe[transform_column], action)(**params)
+        dataframe = dataframe.assign(**{assign: series})
+
+    elif transform_type == 'cross-series':
+        other = dataframe[transformation['other']]
+        assert type(other) == pd.Series
+        print("Transforming %s with function %s and parameters %s, cross column %s. Assign to %s" %
+              (transform_column, action, params, other.name, assign))
+        params = {'other': other, **params}
+
+        series = getattr(dataframe[transform_column], action)(**params)
+        dataframe = dataframe.assign(**{assign: series})
 
     return dataframe
 
@@ -357,50 +382,52 @@ def generate_params_set(model='xgb', num_trials=10):
 
 def train():
     # Load the file
-    features_list, target = load_data(FEATURE_FILE_LIST, set_index='SK_ID_CURR')
+    merged_features, target = load_data(FEATURE_FILE_LIST, set_index='SK_ID_CURR')
 
-    print(features_list[0].info())
-    print(features_list[1].info())
+    print(merged_features.info())
 
-    # transformed_features = transform(features, verbose=True)
-    # print(transformed_features.info(verbose=True))
+    # Split dataset
+    X_train, X_val, y_train, y_val = split_data(merged_features, target)
+
+    # Transform the dataset for xgb
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    deval = xgb.DMatrix(X_val, label=y_val)
+
+    evallist = [(deval, 'eval'), (dtrain, 'train')]
+
+    # Generate hyperparameters
+    hparams_set = generate_params_set('xgb', num_trials=10)
+
+    best_scores = []
+    best_round = []
+
+    # Build model for each hparams set
+    for i, hparam in enumerate(hparams_set):
+
+        model = XGBModel(hparam, trial=i)
+        bst = model.train(dtrain=dtrain, evallist=evallist, num_round=30, verbose=True)
+
+        best_scores.append(bst.best_score)
+        best_round.append(bst.best_iteration)
+
+        model.val(dtest=deval, y_true=y_val)
+
+    # bst = model.train(dtrain, evallist, num_round=10)
     #
-    # # Split dataset
-    # X_train, X_val, y_train, y_val = split_data(features, target)
+    # # Plot the analysis
+    # xgb.plot_importance(bst)
+    # plt.show()
     #
-    # # Transform the dataset for xgb
-    # dtrain = xgb.DMatrix(X_train, label=y_train)
-    # deval = xgb.DMatrix(X_val, label=y_val)
-    #
-    # evallist = [(deval, 'eval'), (dtrain, 'train')]
-    #
-    # # Generate hyperparameters
-    # hparams_set = generate_params_set('xgb', num_trials=10)
-    #
-    # best_scores = []
-    # best_round = []
-    #
-    # # Build model for each hparams set
-    # for i, hparam in enumerate(hparams_set):
-    #
-    #     model = XGBModel(hparam, trial=i)
-    #     bst = model.train(dtrain=dtrain, evallist=evallist, num_round=30, verbose=True)
-    #
-    #     best_scores.append(bst.best_score)
-    #     best_round.append(bst.best_iteration)
-    #
-    #     model.val(dtest=deval, y_true=y_val)
-    #
-    # # bst = model.train(dtrain, evallist, num_round=10)
-    # #
-    # # # Plot the analysis
-    # # xgb.plot_importance(bst)
-    # # plt.show()
-    # #
-    # # # Plot the confusion matrix
-    #
-    # print(best_scores)
-    # print(best_round)
+    # # Plot the confusion matrix
+
+    print(hparams_set)
+    print(best_scores)
+    print(best_round)
+
+    result = pd.DataFrame.from_dict(hparams_set)
+    result = pd.concat([result, best_scores, best_round])
+
+    print(result)
 
 
 if __name__ == "__main__":
