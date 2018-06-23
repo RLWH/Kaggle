@@ -43,8 +43,9 @@ def load_data(feature_dict, set_index=None, index_dtype=None, how_join='left', v
         # Transform the dataset
         transformed_features = transform(file_features, feature_dict[i], verbose=True)
 
-        transformed_features = transformed_features.set_index(set_index)
-        transformed_features.index = transformed_features.index.astype(index_dtype)
+        if set_index:
+            transformed_features = transformed_features.set_index(set_index)
+            transformed_features.index = transformed_features.index.astype(index_dtype)
 
         features_list.append(transformed_features)
 

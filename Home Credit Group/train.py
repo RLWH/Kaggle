@@ -114,9 +114,6 @@ TRAINING_PARAMS = {
 }
 
 
-
-
-
 def train():
     # Load the file
     merged_features, target = load_data(FEATURE_FILE_LIST, set_index='SK_ID_CURR')
