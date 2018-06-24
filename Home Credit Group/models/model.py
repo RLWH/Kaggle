@@ -29,7 +29,7 @@ class Model(object):
         raise NotImplementedError()
 
     @abstractclassmethod
-    def val(self, eval_dataset, y_true, threshold=0.5):
+    def val(self, eval_dataset, y_true, transformation=None, threshold=0.5):
         raise NotImplementedError()
 
     @abstractclassmethod

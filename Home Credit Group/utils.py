@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from functools import reduce
 from sklearn.model_selection import train_test_split
@@ -52,7 +53,8 @@ def load_data(all_feature_dict, set_index=None, index_dtype=None, how_join='left
     if target is None:
         raise ValueError("Target cannot be None. There should be at least one target to continue. ")
     else:
-        print("Target column: %s" % target)
+        assert type(target) == pd.Series
+        print("Target column: %s" % target.name)
 
     return df_merged, target
 
@@ -119,6 +121,13 @@ def transform(dataframe, feature_param, verbose=False):
         print("No aggregation required. ")
         print(err)
 
+    # 4. Convert dummy data
+    try:
+        dummy_features = feature_param['dummy_columns']
+        dataframe = pd.get_dummies(dataframe, columns=dummy_features)
+    except KeyError as err:
+        print("No Dummy conversion specified.")
+
     return dataframe
 
 
@@ -178,7 +187,37 @@ def load_individual_file(feature_dict):
         return transformed_features, None
 
 
-def split_data(features, target=None, test_size=0.1, random_state=42, verbose=False):
+def remove_outliers(dataframe, columns, num_std=4):
+    """
+
+    :param dataframe:
+    :param columns:
+    :param num_std:
+    :return:
+    """
+    index_to_remove = pd.Index([])
+
+    for column in columns:
+
+        print('Column: %s' % column)
+
+        std = dataframe[column].std()
+        mean = dataframe[column].mean()
+
+        outliers = dataframe[abs(dataframe[column] - mean) > (num_std * std)]
+
+        print(outliers.index)
+
+        index_to_remove = index_to_remove.append(outliers.index)
+
+    index_to_remove = index_to_remove.drop_duplicates()
+
+    dataframe = dataframe.drop(index_to_remove, axis=0)
+
+    return dataframe
+
+
+def split_data(features, target=None, test_size=0.1, random_state=42, stratify=None, verbose=False):
 
     if verbose:
         print("Splitting data...")
@@ -188,6 +227,6 @@ def split_data(features, target=None, test_size=0.1, random_state=42, verbose=Fa
                                                       target,
                                                       test_size=test_size,
                                                       random_state=random_state,
-                                                      stratify=target)
+                                                      stratify=stratify)
 
     return X_train, X_val, y_train, y_val
