@@ -4,10 +4,10 @@ from functools import reduce
 from sklearn.model_selection import train_test_split
 
 
-def load_data(feature_dict, set_index=None, index_dtype=None, how_join='left', verbose=False):
+def load_data(all_feature_dict, set_index=None, index_dtype=None, how_join='left', verbose=False):
     """
 
-    :param feature_dict: List of Dictionary of features.
+    :param all_feature_dict: List of Dictionary of features.
                          In the format of [{'filename': {'features': [], 'target': []}]
     :param set_index:
     :param index_dtype: String. Data type of the index. If set_index is none, this field does not matter.
@@ -18,40 +18,41 @@ def load_data(feature_dict, set_index=None, index_dtype=None, how_join='left', v
 
     # Test the feature dict
     if verbose:
-        print("Length of feature dictionary: %s" % len(feature_dict))
+        print("Length of feature dictionary: %s" % len(all_feature_dict))
 
     features_list = []
     target = None
 
-    for i, file in enumerate(feature_dict):
+    for i, feature_dict in enumerate(all_feature_dict):
 
         if verbose:
-            print("The filename of the first file: %s" % file['file'])
-            print("The features to be extracted of the first file: %s" % file['features'])
+            print("The filename of the first file: %s" % feature_dict['file'])
+            print("The features to be extracted of the first file: %s" % feature_dict['features'])
 
-        features_column_names = [feature_column['column_name'] for feature_column in file['features']]
+        transformed_features, target = load_individual_file(feature_dict)
 
-        try:
-            file_features, target = load_individual_file(file['file'],
-                                                         feature_columns=features_column_names,
-                                                         label_column=file['target'])
-        except KeyError:
-            if verbose:
-                print("No target found for file %s. Extract without target" % file['file'])
-            file_features = load_individual_file(file['file'], feature_columns=features_column_names)
-
-        # Transform the dataset
-        transformed_features = transform(file_features, feature_dict[i], verbose=True)
-
-        if set_index:
+        if set_index is not None:
             transformed_features = transformed_features.set_index(set_index)
             transformed_features.index = transformed_features.index.astype(index_dtype)
+
+        # Drop unnecessary columns
+        try:
+            drop_columns = feature_dict['drop_columns']
+            transformed_features = transformed_features.drop(columns=drop_columns, axis=1)
+        except KeyError:
+            print("No columns to be dropped specified in feature dictionary. No columns will be dropped.")
 
         features_list.append(transformed_features)
 
     # Join the dataframes
     df_merged = reduce(lambda left, right: pd.merge(left, right, how='left', left_index=True, right_index=True),
                        features_list)
+
+    # Final check if target is present in the dataset, if not, raise error
+    if target is None:
+        raise ValueError("Target cannot be None. There should be at least one target to continue. ")
+    else:
+        print("Target column: %s" % target)
 
     return df_merged, target
 
@@ -118,11 +119,6 @@ def transform(dataframe, feature_param, verbose=False):
         print("No aggregation required. ")
         print(err)
 
-
-    #
-    # # 4. Drop unused columns
-    # dataframe = dataframe.drop(columns=DROP_COLS_BEFORE_TRAINING, axis=1)
-
     return dataframe
 
 
@@ -160,16 +156,26 @@ def make_transform(dataframe, transformation, verbose=False):
     return dataframe
 
 
-def load_individual_file(file_path, feature_columns, label_column=None):
+def load_individual_file(feature_dict):
+    """
 
-    dataframe = pd.read_csv(file_path)
-    features = dataframe.loc[:, feature_columns]
+    :param feature_dict:
+    :return:
+    """
+    features_column_names = [feature_column['column_name'] for feature_column in feature_dict['features']]
 
-    if label_column:
-        target = dataframe[label_column]
-        return features, target
-    else:
-        return features
+    dataframe = pd.read_csv(feature_dict['file'])
+    features = dataframe.loc[:, features_column_names]
+
+    # Transform the dataset
+    transformed_features = transform(features, feature_dict, verbose=True)
+
+    try:
+        target = transformed_features[feature_dict['target']]
+        return transformed_features, target
+    except KeyError:
+        print("No target to be extracted")
+        return transformed_features, None
 
 
 def split_data(features, target=None, test_size=0.1, random_state=42, verbose=False):
